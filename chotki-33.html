@@ -1,0 +1,3186 @@
+<title>Чётки</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="theme-color" content="#17121d">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Чётки">
+<link rel="manifest" href="manifest.json">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<style>
+/*
+  Layout: sticky header band / scrolling tap-to-count area (a bead-thread
+  timeline growing top-to-bottom) / sticky bottom control bar.
+  Single dark, candlelit theme — deliberate, no light variant.
+  System fonts only (no external font/CDN fetch) so the page needs
+  no network once it has loaded.
+*/
+:root{
+  --bg:#17121d;
+  --surface:#221b2b;
+  --surface-2:#2c2336;
+  --fg:#f3e9d7;
+  --muted:#9c8fa8;
+  --muted-2:#776a89;
+  --accent:#d7a753;
+  --accent-dim:#7d5f2c;
+  --line:#3a2f47;
+  --danger:#c6604c;
+  --danger-dim:#7a3b2d;
+  --serif:Georgia,'Times New Roman',ui-serif,serif;
+  --sans:system-ui,-apple-system,'Segoe UI',Roboto,sans-serif;
+  color-scheme: dark;
+}
+:root[data-theme="dark"]{
+  --bg:#17121d; --surface:#221b2b; --surface-2:#2c2336;
+  --fg:#f3e9d7; --muted:#9c8fa8; --muted-2:#776a89;
+  --accent:#d7a753; --accent-dim:#7d5f2c; --line:#3a2f47;
+}
+:root[data-theme="green"]{
+  --bg:#0f1f16; --surface:#16291d; --surface-2:#1d3425;
+  --fg:#e9f3e3; --muted:#8fac93; --muted-2:#5e7a65;
+  --accent:#7cbf68; --accent-dim:#3c5c35; --line:#28402f;
+}
+*{box-sizing:border-box;}
+html,body{height:100%;}
+body{
+  margin:0;
+  background:var(--bg);
+  color:var(--fg);
+  font-family:var(--sans);
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+}
+body::before{
+  content:"";
+  position:fixed;
+  inset:0 0 auto;
+  height:env(safe-area-inset-top,0px);
+  z-index:10;
+  background:var(--surface);
+}
+button{font-family:inherit;}
+
+/* ---------- header ---------- */
+.topbar{
+  position:sticky;
+  top:env(safe-area-inset-top,0px);
+  z-index:10;
+  background:var(--surface);
+  border-bottom:1px solid var(--line);
+  flex-shrink:0;
+}
+.topbar-inner{
+  padding-block:14px;
+  padding-left:max(16px, env(safe-area-inset-left,0px));
+  padding-right:max(16px, env(safe-area-inset-right,0px));
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+}
+.brand{display:flex; flex-direction:column; min-width:0; gap:2px;}
+.brand h1{
+  font-family:var(--serif);
+  font-weight:700;
+  font-size:19px;
+  margin:0;
+  letter-spacing:.2px;
+}
+.brand .word-preview{
+  font-size:13px;
+  color:var(--accent);
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+  max-width:46vw;
+}
+.header-btns{display:flex; gap:8px; flex-shrink:0;}
+.icon-btn{
+  width:40px;height:40px;
+  border-radius:50%;
+  border:1px solid var(--line);
+  background:var(--surface-2);
+  color:var(--fg);
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;
+  flex-shrink:0;
+}
+.icon-btn:active{background:var(--accent-dim);}
+.icon-btn svg{width:19px;height:19px;}
+
+/* ---------- counting area ---------- */
+.counter{
+  flex:1;
+  overflow-y:auto;
+  -webkit-overflow-scrolling:touch;
+  background:var(--bg);
+}
+.counter-inner{
+  min-height:100%;
+  padding:18px max(16px, env(safe-area-inset-left,0px)) 28px max(16px, env(safe-area-inset-right,0px));
+  display:flex;
+  flex-direction:column;
+}
+.empty-state{
+  margin:auto;
+  text-align:center;
+  color:var(--muted);
+  padding:24px;
+  max-width:280px;
+}
+.empty-state .bead{
+  width:14px;height:14px;border-radius:50%;
+  background:var(--accent);
+  margin:0 auto 18px;
+  box-shadow:0 0 0 6px var(--surface-2);
+}
+.empty-state p{margin:0 0 6px; font-size:15px; line-height:1.5;}
+.empty-state .sub{font-size:13px; color:var(--muted-2);}
+.empty-state button{
+  margin-top:16px;
+  border:1px solid var(--accent-dim);
+  background:var(--accent-dim);
+  color:var(--fg);
+  padding:10px 18px;
+  border-radius:10px;
+  font-weight:700;
+  font-size:14px;
+  cursor:pointer;
+}
+
+.thread{
+  position:relative;
+  padding-left:38px;
+}
+.thread::before{
+  content:"";
+  position:absolute;
+  left:12px; top:4px; bottom:4px;
+  width:2px;
+  background:linear-gradient(180deg, transparent, var(--line) 8%, var(--line) 92%, transparent);
+}
+.entry{
+  position:relative;
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+  padding:12px 0;
+  animation:rise .18s ease-out;
+}
+.entry::before{
+  content:"";
+  position:absolute;
+  left:-38px; top:50%;
+  transform:translateY(-50%);
+  width:17px;height:17px;border-radius:50%;
+  background:var(--muted-2);
+  border:2px solid var(--bg);
+  box-shadow:
+    inset -3px -4px 5px rgba(0,0,0,.35),
+    inset 3px 3px 4px rgba(255,255,255,.3),
+    0 1px 3px rgba(0,0,0,.35);
+  transition:width .22s, height .22s, background .22s, box-shadow .22s;
+}
+.entry.current::before{
+  background:var(--accent);
+  width:25px;height:25px;
+  box-shadow:
+    inset -3px -4px 6px rgba(0,0,0,.3),
+    inset 3px 3px 5px rgba(255,255,255,.6),
+    0 0 10px var(--accent),
+    0 0 24px var(--accent),
+    0 2px 6px rgba(0,0,0,.4);
+  animation:beadDrop .34s cubic-bezier(.34,1.56,.64,1);
+}
+@keyframes beadDrop{
+  0%{transform:translateY(calc(-50% - 22px)) scale(.5); opacity:0;}
+  60%{transform:translateY(calc(-50% + 3px)) scale(1.2); opacity:1;}
+  100%{transform:translateY(-50%) scale(1); opacity:1;}
+}
+@media (prefers-reduced-motion: reduce){
+  .entry.current::before{animation:none;}
+}
+.entry .w{
+  font-family:var(--serif);
+  font-weight:700;
+  font-size:19px;
+  line-height:1.3;
+  color:var(--muted);
+  min-width:0;
+  overflow:visible;
+  white-space:normal;
+  word-break:break-word;
+  transition:color .18s, font-size .18s;
+}
+.entry .n{
+  align-self:flex-end;
+  font-variant-numeric:tabular-nums;
+  font-weight:800;
+  font-size:19px;
+  color:var(--muted);
+  flex-shrink:0;
+  transition:color .18s, font-size .18s;
+}
+.entry.current .w{color:var(--fg); font-size:27px;}
+.entry.current .n{color:var(--accent); font-size:27px;}
+@keyframes rise{
+  from{opacity:0; transform:translateY(6px);}
+  to{opacity:1; transform:translateY(0);}
+}
+.tap-hint{
+  text-align:center;
+  color:var(--muted-2);
+  font-size:12px;
+  letter-spacing:.3px;
+  padding-top:10px;
+  margin-top:auto;
+}
+
+/* ---------- bottom bar ---------- */
+.bottombar{
+  position:sticky;
+  bottom:0;
+  z-index:10;
+  background:var(--surface);
+  border-top:1px solid var(--line);
+  flex-shrink:0;
+}
+.bottombar-inner{
+  padding-top:12px;
+  padding-bottom:calc(12px + env(safe-area-inset-bottom,0px));
+  padding-left:max(16px, env(safe-area-inset-left,0px));
+  padding-right:max(16px, env(safe-area-inset-right,0px));
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+.total{
+  display:flex;
+  flex-direction:column;
+  line-height:1.1;
+}
+.total .num{
+  font-family:var(--serif);
+  font-weight:700;
+  font-size:25px;
+  color:var(--accent);
+  font-variant-numeric:tabular-nums;
+}
+.total .lbl{font-size:11px; color:var(--muted); letter-spacing:.3px;}
+.spacer{flex:1;}
+.btn{
+  border:1px solid var(--line);
+  background:var(--surface-2);
+  color:var(--fg);
+  padding:11px 16px;
+  border-radius:10px;
+  font-size:14px;
+  font-weight:600;
+  cursor:pointer;
+}
+.btn:active{background:var(--accent-dim);}
+.btn.danger{color:#f0c9bd; border-color:var(--danger-dim);}
+.btn.danger:active{background:var(--danger-dim);}
+
+/* ---------- sheets (settings / list) ---------- */
+.sheet-overlay{
+  position:fixed; inset:0;
+  background:rgba(10,7,14,.6);
+  z-index:20;
+  display:flex;
+  align-items:flex-end;
+}
+.sheet{
+  background:var(--surface);
+  width:100%;
+  max-height:min(86vh, 640px);
+  border-radius:20px 20px 0 0;
+  border-top:1px solid var(--line);
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+}
+.sheet-head{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:16px max(18px, env(safe-area-inset-left,0px)) 12px max(18px, env(safe-area-inset-right,0px));
+  border-bottom:1px solid var(--line);
+  flex-shrink:0;
+}
+.sheet-head h2{
+  margin:0; font-family:var(--serif); font-size:18px; font-weight:700;
+}
+.sheet-body{
+  overflow-y:auto;
+  padding:18px max(18px, env(safe-area-inset-left,0px)) calc(24px + env(safe-area-inset-bottom,0px)) max(18px, env(safe-area-inset-right,0px));
+  display:flex; flex-direction:column; gap:22px;
+}
+
+/* list sheet */
+.plist{display:flex; flex-direction:column; gap:10px;}
+.pcard{
+  display:flex; align-items:center; gap:10px;
+  background:var(--surface-2);
+  border:1px solid var(--line);
+  border-radius:12px;
+  padding:12px 12px;
+}
+.pcard.active{border-color:var(--accent);}
+.pcard .pmain{flex:1; min-width:0; display:flex; flex-direction:column; gap:2px; text-align:left; background:none; border:0; color:inherit; cursor:pointer; padding:0;}
+.pcard .plabel{font-family:var(--serif); font-size:16px; font-weight:700; color:var(--fg); white-space:normal; word-break:break-word; line-height:1.25;}
+.pcard .pnote{font-size:11px; color:var(--muted-2); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.pcard .pactive-tag{font-size:11px; color:var(--accent); font-weight:700; letter-spacing:.3px;}
+.pcard .pcount{
+  flex-shrink:0;
+  font-family:var(--serif);
+  font-weight:800;
+  font-size:22px;
+  color:var(--accent);
+  font-variant-numeric:tabular-nums;
+  background:var(--bg);
+  border:1px solid var(--line);
+  border-radius:10px;
+  min-width:52px;
+  text-align:center;
+  padding:6px 8px;
+}
+.pcard .pactions{display:flex; gap:6px; flex-shrink:0;}
+.pcard .pbtn{
+  width:32px;height:32px; border-radius:8px;
+  border:1px solid var(--line); background:var(--bg);
+  color:var(--muted); display:flex; align-items:center; justify-content:center; cursor:pointer;
+}
+.pcard .pbtn svg{width:15px;height:15px;}
+.pcard .pbtn:active{background:var(--accent-dim); color:var(--fg);}
+.pcard.rename input{
+  flex:1; background:var(--bg); border:1px solid var(--accent); color:var(--fg);
+  border-radius:8px; padding:9px 10px; font-size:16px; font-family:var(--serif);
+}
+.add-row{display:flex; gap:8px;}
+.add-row input{
+  flex:1; background:var(--surface-2); border:1px solid var(--line); color:var(--fg);
+  border-radius:10px; padding:12px 14px; font-size:16px; font-family:var(--serif);
+}
+.add-row button{
+  border:1px solid var(--accent-dim); background:var(--accent-dim); color:var(--fg);
+  border-radius:10px; padding:0 18px; font-weight:700; cursor:pointer;
+}
+
+/* settings sheet fields */
+.field label{
+  display:block;
+  font-size:12px;
+  font-weight:700;
+  color:var(--muted);
+  letter-spacing:.4px;
+  text-transform:uppercase;
+  margin-bottom:8px;
+}
+.field .hint{font-size:12px; color:var(--muted-2); margin-top:6px;}
+.row{display:flex; align-items:center; justify-content:space-between; gap:12px;}
+.switch{position:relative; width:46px; height:27px; flex-shrink:0;}
+.switch input{position:absolute; inset:0; opacity:0; margin:0; cursor:pointer;}
+.switch .track{position:absolute; inset:0; border-radius:14px; background:var(--surface-2); border:1px solid var(--line); transition:background .15s;}
+.switch .thumb{position:absolute; top:2px; left:2px; width:21px; height:21px; border-radius:50%; background:var(--muted); transition:transform .15s, background .15s;}
+.switch input:checked + .track{background:var(--accent-dim); border-color:var(--accent);}
+.switch input:checked + .track .thumb{transform:translateX(19px); background:var(--accent);}
+.voice-row{display:flex; align-items:center; gap:10px;}
+.file-btn{position:relative; overflow:hidden; display:inline-flex;}
+.file-btn input[type=file]{position:absolute; inset:0; opacity:0; cursor:pointer;}
+.voice-name{font-size:13px; color:var(--muted); min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.status-msg{font-size:12px; margin-top:8px; min-height:16px;}
+.status-msg.err{color:#e59684;}
+.status-msg.ok{color:#9fd3a8;}
+.sec-control{display:flex; align-items:center; gap:12px;}
+.sec-control input[type=range]{flex:1; accent-color:var(--accent);}
+.sec-value{font-variant-numeric:tabular-nums; font-weight:800; color:var(--accent); min-width:52px; text-align:right; font-size:15px;}
+.auto-btn{width:100%; padding:13px; border-radius:10px; border:1px solid var(--accent-dim); background:var(--accent-dim); color:var(--fg); font-weight:700; font-size:15px; cursor:pointer;}
+.auto-btn.running{background:var(--danger-dim); border-color:var(--danger-dim); color:#f6dcd4;}
+.offline-note{font-size:12px; color:var(--muted-2); line-height:1.5;}
+.seg{display:flex; gap:8px; flex-wrap:wrap;}
+.seg button{
+  flex:1; min-width:72px;
+  padding:10px 6px;
+  border-radius:10px;
+  border:1px solid var(--line);
+  background:var(--surface-2);
+  color:var(--muted);
+  font-size:12px;
+  font-weight:700;
+  cursor:pointer;
+  text-align:center;
+}
+.seg button.active{background:var(--accent-dim); border-color:var(--accent); color:var(--fg);}
+.swatches{display:flex; gap:12px;}
+.swatch{
+  width:52px; height:52px; border-radius:50%;
+  border:2px solid var(--line);
+  cursor:pointer;
+  position:relative;
+  flex-shrink:0;
+  padding:0;
+}
+.swatch.active{border-color:var(--accent); box-shadow:0 0 0 3px var(--surface-2);}
+.swatch::after{
+  content:"";
+  position:absolute; inset:6px;
+  border-radius:50%;
+}
+.swatch[data-theme="dark"]{background:#17121d;} .swatch[data-theme="dark"]::after{background:#d7a753;}
+.swatch[data-theme="green"]{background:#0f1f16;} .swatch[data-theme="green"]::after{background:#7cbf68;}
+.swatch-labels{display:flex; gap:12px; margin-top:6px;}
+.swatch-labels span{width:52px; text-align:center; font-size:11px; color:var(--muted-2);}
+.milestone{
+  position:fixed;
+  left:50%;
+  top:calc(env(safe-area-inset-top,0px) + 66px);
+  transform:translate(-50%,-14px);
+  z-index:35;
+  background:var(--surface-2);
+  border:1px solid var(--accent);
+  border-radius:14px;
+  padding:12px 14px;
+  display:flex;
+  align-items:center;
+  gap:10px;
+  box-shadow:0 10px 26px rgba(0,0,0,.35);
+  opacity:0;
+  pointer-events:none;
+  transition:opacity .22s, transform .22s;
+  max-width:min(90vw, 360px);
+}
+.milestone.show{opacity:1; transform:translate(-50%,0); pointer-events:auto;}
+.milestone .mtext{font-family:var(--serif); font-weight:700; font-size:14px; color:var(--fg); white-space:nowrap;}
+.milestone button{
+  border:1px solid var(--line); background:var(--bg); color:var(--fg);
+  border-radius:9px; padding:7px 11px; font-size:12px; font-weight:700; cursor:pointer; flex-shrink:0;
+}
+.milestone button:active{background:var(--accent-dim);}
+.daily-toast{top:calc(env(safe-area-inset-top,0px) + 132px);}
+.daily-toast .mtext{white-space:normal; max-width:260px;}
+.daily-toast.warn{border-color:#d98b3a;}
+.daily-toast.ok{border-color:#5fbf7a;}
+
+/* ---------- stats sheet ---------- */
+.stats-grid{display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-bottom:6px;}
+.stats-card{
+  background:var(--surface-2); border:1px solid var(--line); border-radius:14px;
+  padding:14px 8px; text-align:center;
+}
+.stats-card .stats-label{font-size:11px; color:var(--muted-2); margin-bottom:4px;}
+.stats-card .stats-value{font-family:var(--serif); font-weight:800; font-size:22px; color:var(--accent); font-variant-numeric:tabular-nums;}
+.stats-compare{
+  margin-top:4px; padding:12px 14px; border-radius:12px;
+  background:var(--surface-2); border:1px solid var(--line);
+  font-size:13.5px; line-height:1.4;
+}
+.stats-compare.warn{border-color:#d98b3a; color:#d98b3a;}
+.stats-compare.ok{border-color:#5fbf7a; color:#5fbf7a;}
+.stats-week{margin-top:16px;}
+.stats-week-row{display:flex; align-items:flex-end; gap:6px; height:120px; padding:4px 2px;}
+.stats-bar-col{flex:1; display:flex; flex-direction:column; align-items:center; justify-content:flex-end; height:100%; gap:4px;}
+.stats-bar{width:100%; max-width:30px; border-radius:5px 5px 2px 2px; background:var(--accent-dim); transition:height .35s ease;}
+.stats-bar.today{background:var(--accent); box-shadow:0 0 8px var(--accent);}
+.stats-bar-day{font-size:10px; color:var(--muted-2);}
+.stats-bar-val{font-size:10px; color:var(--muted); font-variant-numeric:tabular-nums;}
+
+/* ---------- animated full-screen stage ---------- */
+.stage-overlay{
+  position:fixed; inset:0;
+  z-index:30;
+  background:var(--bg);
+  display:flex;
+  flex-direction:column;
+}
+.stage-top{
+  flex-shrink:0;
+  display:flex;
+  justify-content:flex-end;
+  padding-top:max(14px, env(safe-area-inset-top,0px));
+  padding-right:max(16px, env(safe-area-inset-right,0px));
+  padding-left:max(16px, env(safe-area-inset-left,0px));
+  padding-bottom:6px;
+}
+.stage-mid{
+  flex:1;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:22px;
+  padding:16px max(20px, env(safe-area-inset-left,0px));
+  perspective:800px;
+  cursor:pointer;
+  overflow-y:auto;
+  min-height:0;
+}
+.stage-content{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:18px;
+  max-width:100%;
+}
+.stage-word{
+  font-family:var(--serif);
+  font-weight:700;
+  font-size:clamp(28px, 7vw, 46px);
+  line-height:1.25;
+  color:var(--fg);
+  text-align:center;
+  text-wrap:balance;
+  max-width:90vw;
+}
+.stage-num{
+  font-family:var(--serif);
+  font-weight:800;
+  font-size:clamp(64px, 24vw, 160px);
+  line-height:1;
+  color:var(--accent);
+  font-variant-numeric:tabular-nums;
+}
+.stage-bottom{
+  flex-shrink:0;
+  text-align:center;
+  color:var(--muted-2);
+  font-size:12px;
+  letter-spacing:.3px;
+  padding-bottom:calc(20px + env(safe-area-inset-bottom,0px));
+}
+@keyframes animPop{0%{opacity:0; transform:scale(.55);}65%{opacity:1; transform:scale(1.08);}100%{opacity:1; transform:scale(1);}}
+@keyframes animSlide{0%{opacity:0; transform:translateY(46px);}100%{opacity:1; transform:translateY(0);}}
+@keyframes animFlip{0%{opacity:0; transform:rotateX(85deg);}100%{opacity:1; transform:rotateX(0deg);}}
+@keyframes animPulse{0%{transform:scale(1);}35%{transform:scale(1.18);}65%{transform:scale(.95);}100%{transform:scale(1);}}
+@keyframes animBlur{0%{opacity:0; filter:blur(14px);}100%{opacity:1; filter:blur(0);}}
+.stage-content.anim-pop{animation:animPop .42s cubic-bezier(.2,.8,.3,1);}
+.stage-content.anim-slide{animation:animSlide .38s ease-out;}
+.stage-content.anim-flip{animation:animFlip .4s ease-out; transform-style:preserve-3d;}
+.stage-content.anim-pulse{animation:animPulse .4s ease-out;}
+.stage-content.anim-blur{animation:animBlur .45s ease-out;}
+@media (prefers-reduced-motion: reduce){
+  .stage-content.anim-pop, .stage-content.anim-slide, .stage-content.anim-flip, .stage-content.anim-pulse, .stage-content.anim-blur{animation:none;}
+}
+
+/* ---------- heart stage ---------- */
+.heart-stage{display:flex; flex-direction:column; align-items:center; gap:20px; max-width:100%;}
+.heart-wrap{position:relative; width:min(62vw,260px); aspect-ratio:32/29; flex-shrink:0;}
+.heart-wrap.flash{animation:heartPulse .4s ease-out;}
+@keyframes heartPulse{0%{transform:scale(1);} 35%{transform:scale(1.08);} 100%{transform:scale(1);}}
+.heart-outline{
+  position:absolute; inset:0; width:100%; height:100%; display:block;
+  filter:drop-shadow(0 0 9px var(--accent)) drop-shadow(0 0 20px var(--accent-dim));
+  transition:filter .3s ease;
+}
+.heart-outline path{fill:var(--surface-2); stroke:var(--accent); stroke-width:0.6;}
+.heart-outline.flash{animation:heartGlow .6s ease-out;}
+.heart-liquid{
+  position:absolute; inset:0; overflow:hidden;
+  clip-path:inset(var(--heart-empty,0%) 0 0 0);
+  transition:clip-path .55s cubic-bezier(.3,.7,.2,1);
+}
+.heart-liquid svg{position:absolute; inset:0; width:100%; height:100%; display:block;}
+.heart-liquid path{fill:var(--accent);}
+@keyframes heartGlow{
+  0%{filter:drop-shadow(0 0 9px var(--accent)) drop-shadow(0 0 20px var(--accent-dim));}
+  35%{filter:drop-shadow(0 0 46px var(--accent)) drop-shadow(0 0 84px var(--accent)) brightness(1.6);}
+  100%{filter:drop-shadow(0 0 9px var(--accent)) drop-shadow(0 0 20px var(--accent-dim));}
+}
+@media (prefers-reduced-motion: reduce){
+  .heart-wrap.flash{animation:none;}
+  .heart-outline.flash{animation:none;}
+  .heart-liquid{transition:none;}
+}
+
+/* ---------- voice-activated counting ---------- */
+.voice-overlay{
+  position:fixed; inset:0;
+  z-index:30;
+  background:var(--bg);
+  display:flex;
+  flex-direction:column;
+}
+.voice-mid{
+  flex:1;
+  overflow-y:auto;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  gap:20px;
+  padding:16px max(20px, env(safe-area-inset-left,0px)) 24px;
+}
+.voice-content{display:flex; flex-direction:column; align-items:center; gap:14px;}
+.voice-meter-wrap{
+  width:min(80vw,320px); height:10px; border-radius:6px;
+  background:var(--surface-2); border:1px solid var(--line); overflow:hidden;
+}
+.voice-meter-fill{
+  height:100%; width:0%;
+  background:linear-gradient(90deg, var(--accent-dim), var(--accent));
+}
+.voice-status{font-size:13px; color:var(--muted); text-align:center; max-width:320px; min-height:18px;}
+.voice-status.err{color:#e59684;}
+.voice-status.ok{color:#9fd3a8;}
+.voice-field{width:100%; max-width:320px;}
+.voice-field label{display:block; text-align:center;}
+.voice-field .hint{text-align:center;}
+
+/* ---------- forest / garden stage ---------- */
+.forest-stage{display:flex; flex-direction:column; align-items:center; gap:14px; max-width:100%;}
+.forest-grid{
+  display:grid;
+  grid-template-columns:repeat(var(--forest-cols, 10), 1fr);
+  gap:6px;
+  width:min(86vw, 360px);
+  max-height:44vh;
+  overflow-y:auto;
+  padding:10px;
+  background:var(--surface-2);
+  border:1px solid var(--line);
+  border-radius:14px;
+}
+.forest-slot{
+  aspect-ratio:1;
+  display:flex; align-items:center; justify-content:center;
+  border-radius:6px;
+  background:var(--bg);
+  border:1px dashed var(--line);
+}
+.forest-slot.planted{border-color:transparent;}
+.forest-slot svg{width:82%; height:82%;}
+.forest-slot.grow svg{animation:treeGrow .4s cubic-bezier(.34,1.56,.64,1);}
+@keyframes treeGrow{
+  0%{transform:scale(0) translateY(35%); opacity:0;}
+  60%{transform:scale(1.25) translateY(-4%); opacity:1;}
+  100%{transform:scale(1) translateY(0); opacity:1;}
+}
+.forest-caption{font-size:13px; color:var(--muted); font-variant-numeric:tabular-nums;}
+@media (prefers-reduced-motion: reduce){
+  .forest-slot.grow svg{animation:none;}
+}
+
+/* ---------- falling beads row ---------- */
+.beads-stage{display:flex; flex-direction:column; align-items:center; gap:14px; max-width:100%;}
+.beads-row{
+  display:flex; flex-wrap:wrap; gap:8px;
+  justify-content:center; align-content:flex-start;
+  width:min(92vw, 420px);
+  max-height:48vh;
+  overflow-y:auto;
+  padding:14px;
+  background:var(--surface-2);
+  border:1px solid var(--line);
+  border-radius:14px;
+}
+.bead-chip{
+  width:34px; height:34px; border-radius:50%;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:0;
+  font-family:var(--serif); font-weight:800; font-size:13px;
+  color:var(--bg);
+  background:var(--accent);
+  box-shadow:
+    inset -2px -3px 4px rgba(0,0,0,.3),
+    inset 2px 2px 3px rgba(255,255,255,.5),
+    0 0 8px var(--accent);
+  flex-shrink:0;
+  overflow:hidden;
+  text-align:center;
+  line-height:1;
+}
+.bead-chip.has-label{width:44px; height:44px;}
+.chip-num{font-size:13px; line-height:1;}
+.chip-label{
+  font-family:var(--sans); font-weight:700; font-size:7px;
+  line-height:1.05; max-width:92%;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  opacity:.85; margin-top:1px;
+}
+.bead-chip.fall{animation:beadFall .5s cubic-bezier(.25,.75,.4,1);}
+@keyframes beadFall{
+  0%{transform:translateY(-220px) scale(.7); opacity:0;}
+  70%{transform:translateY(8px) scale(1.08); opacity:1;}
+  100%{transform:translateY(0) scale(1); opacity:1;}
+}
+@media (prefers-reduced-motion: reduce){
+  .bead-chip.fall{animation:none;}
+}
+
+/* ---------- falling bricks wall ---------- */
+.bricks-stage{display:flex; flex-direction:column; align-items:center; gap:14px; max-width:100%;}
+.bricks-row{
+  display:flex; flex-wrap:wrap; gap:4px;
+  justify-content:center; align-content:flex-start;
+  width:min(92vw, 460px);
+  max-height:48vh;
+  overflow-y:auto;
+  padding:14px;
+  background:var(--surface-2);
+  border:1px solid var(--line);
+  border-radius:14px;
+}
+.brick-chip{
+  width:52px; height:28px; border-radius:3px;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  font-family:var(--serif); font-weight:800; font-size:12px;
+  color:var(--bg);
+  background:var(--accent);
+  border:1px solid var(--accent-dim);
+  box-shadow:
+    inset -2px -3px 3px rgba(0,0,0,.3),
+    inset 2px 2px 2px rgba(255,255,255,.4),
+    0 0 6px var(--accent);
+  flex-shrink:0;
+  overflow:hidden;
+  text-align:center;
+  line-height:1;
+}
+.brick-chip.has-label{width:66px; height:38px;}
+.brick-chip.fall{animation:beadFall .45s cubic-bezier(.25,.75,.4,1);}
+@media (prefers-reduced-motion: reduce){
+  .brick-chip.fall{animation:none;}
+}
+
+/* ---------- screen filling with read text ---------- */
+.text-wall-stage{display:flex; flex-direction:column; align-items:center; gap:14px; max-width:100%; width:100%;}
+.text-wall-wrap{
+  display:flex; flex-wrap:wrap; gap:6px;
+  justify-content:center; align-content:flex-start;
+  width:min(96vw, 560px);
+  max-height:68vh;
+  overflow-y:auto;
+  padding:16px;
+  background:var(--surface-2);
+  border:1px solid var(--line);
+  border-radius:16px;
+}
+.text-wall-chip{
+  font-family:var(--serif); font-weight:700; font-size:11px; line-height:1.3;
+  color:var(--bg);
+  background:var(--accent);
+  padding:5px 9px;
+  border-radius:6px;
+  box-shadow:0 0 6px var(--accent);
+  white-space:nowrap;
+  flex-shrink:0;
+}
+.text-wall-chip.fall{animation:beadFall .45s cubic-bezier(.25,.75,.4,1);}
+@media (prefers-reduced-motion: reduce){
+  .text-wall-chip.fall{animation:none;}
+}
+
+/* ---------- running marquee line ---------- */
+.marquee-stage{
+  position:relative;
+  width:100%; height:100%;
+  display:flex; align-items:center; justify-content:center;
+  overflow:hidden;
+}
+.marquee-track{
+  display:flex; align-items:center; gap:70px;
+  white-space:nowrap;
+  animation:marqueeScroll var(--marquee-duration, 12s) linear infinite;
+  will-change:transform;
+}
+.marquee-text{
+  font-family:var(--serif); font-weight:800;
+  font-size:clamp(32px, 9vw, 76px);
+  color:var(--accent);
+  text-shadow:0 0 14px var(--accent), 0 0 34px var(--accent-dim);
+  white-space:nowrap;
+}
+@keyframes marqueeScroll{
+  from{ transform:translateX(0); }
+  to{ transform:translateX(-50%); }
+}
+.marquee-count{
+  position:absolute; bottom:max(22px, env(safe-area-inset-bottom,0px));
+  left:50%; transform:translateX(-50%);
+  font-family:var(--serif); font-weight:800; font-size:20px;
+  color:var(--muted); font-variant-numeric:tabular-nums;
+}
+.marquee-stage.blink-slow .marquee-text{animation:marqueeBlink var(--marquee-blink-duration, 1.4s) ease-in-out infinite;}
+.marquee-stage.blink-fast .marquee-text{animation:marqueeBlink var(--marquee-blink-duration, .5s) ease-in-out infinite;}
+.marquee-stage.blink-pulse .marquee-text{animation:marqueeGlowPulse var(--marquee-blink-duration, 1.2s) ease-in-out infinite;}
+.marquee-stage.blink-strobe .marquee-text{animation:marqueeStrobe var(--marquee-blink-duration, .25s) steps(1,end) infinite;}
+@keyframes marqueeBlink{
+  0%,100%{opacity:1;}
+  50%{opacity:.15;}
+}
+@keyframes marqueeGlowPulse{
+  0%,100%{text-shadow:0 0 14px var(--accent), 0 0 34px var(--accent-dim); opacity:1;}
+  50%{text-shadow:0 0 32px var(--accent), 0 0 64px var(--accent); opacity:.85;}
+}
+@keyframes marqueeStrobe{
+  0%,49%{opacity:1;}
+  50%,100%{opacity:.08;}
+}
+@media (prefers-reduced-motion: reduce){
+  .marquee-track{animation-duration:36s;}
+  .marquee-stage.blink-slow .marquee-text,
+  .marquee-stage.blink-fast .marquee-text,
+  .marquee-stage.blink-pulse .marquee-text,
+  .marquee-stage.blink-strobe .marquee-text{animation:none;}
+}
+
+/* ---------- heart mosaic of glowing stars ---------- */
+.heart-mosaic-stage{display:flex; flex-direction:column; align-items:center; gap:14px; max-width:100%;}
+.heart-mosaic-wrap{position:relative; width:min(99vw,680px); aspect-ratio:32/29;}
+.heart-mosaic-wrap.flash{animation:heartPulse .4s ease-out;}
+.heart-mosaic-outline{
+  position:absolute; inset:0; width:100%; height:100%; display:block;
+  opacity:.9; pointer-events:none;
+  filter:drop-shadow(0 0 10px var(--accent)) drop-shadow(0 0 24px var(--accent-dim));
+  animation:mosaicOutlineGlow 2.6s ease-in-out infinite;
+}
+.heart-mosaic-outline path{ fill:none; stroke:var(--accent); stroke-width:.6; }
+@keyframes mosaicOutlineGlow{
+  0%,100%{filter:drop-shadow(0 0 8px var(--accent)) drop-shadow(0 0 18px var(--accent-dim));}
+  50%{filter:drop-shadow(0 0 18px var(--accent)) drop-shadow(0 0 38px var(--accent));}
+}
+.heart-mosaic-grid{
+  position:absolute; inset:0;
+  display:grid;
+  grid-template-columns:repeat(var(--mosaic-cols, 10), 1fr);
+  grid-template-rows:repeat(var(--mosaic-rows, 10), 1fr);
+  gap:2.5px;
+  clip-path:url(#heartMosaicClipPath);
+  -webkit-clip-path:url(#heartMosaicClipPath);
+}
+.mosaic-cell{
+  display:flex; align-items:center; justify-content:center;
+  background:var(--surface-2);
+  border-radius:50%;
+  box-shadow:
+    inset -1px -2px 3px rgba(0,0,0,.25),
+    inset 1px 1px 2px rgba(255,255,255,.35);
+  font-family:var(--sans); font-weight:700; font-size:7px; line-height:1;
+  color:transparent;
+  text-align:center; overflow:hidden; white-space:nowrap;
+  padding:0 2px;
+  transition:background .25s ease, color .25s ease, box-shadow .25s ease;
+}
+.mosaic-cell.lit{
+  background:var(--accent-dim);
+  color:var(--accent);
+  text-shadow:0 0 3px var(--accent), 0 0 7px var(--accent);
+  box-shadow:
+    inset -1px -2px 3px rgba(0,0,0,.25),
+    inset 1px 1px 2px rgba(255,255,255,.35),
+    0 0 8px var(--accent);
+}
+.mosaic-cell.lit.twinkle{animation:mosaicTwinkle .55s ease-out;}
+@keyframes mosaicTwinkle{
+  0%{ transform:scale(.3); filter:brightness(1); }
+  45%{ transform:scale(1.4); filter:brightness(2.4); }
+  100%{ transform:scale(1); filter:brightness(1); }
+}
+@media (prefers-reduced-motion: reduce){
+  .heart-mosaic-wrap.flash{animation:none;}
+  .heart-mosaic-outline{animation:none;}
+  .mosaic-cell.lit.twinkle{animation:none;}
+  .mosaic-cell{transition:none;}
+}
+
+/* ---------- tasbih beads on a thread ---------- */
+.thread-beads-stage{display:flex; flex-direction:column; align-items:center; gap:14px; max-width:100%;}
+.thread-beads-wrap{
+  position:relative;
+  width:min(94vw, 460px);
+  max-height:60vh;
+  overflow:auto;
+  padding:20px 16px;
+  background:var(--surface-2);
+  border:1px solid var(--line);
+  border-radius:18px;
+}
+.thread-beads-row{
+  display:flex; flex-wrap:wrap; gap:14px;
+  justify-content:center; align-content:flex-start;
+  position:relative;
+  padding:6px;
+}
+.tb-bead{
+  width:54px; height:54px; border-radius:50%;
+  display:flex; align-items:center; justify-content:center;
+  font-family:var(--serif); font-weight:800; font-size:16px;
+  color:var(--muted-2);
+  background:var(--surface);
+  box-shadow:
+    inset -3px -4px 5px rgba(0,0,0,.35),
+    inset 3px 3px 4px rgba(255,255,255,.22),
+    0 1px 3px rgba(0,0,0,.35);
+  flex-shrink:0;
+  position:relative;
+}
+.tb-bead.lit{
+  color:var(--bg);
+  background:var(--accent);
+  box-shadow:
+    inset -3px -4px 5px rgba(0,0,0,.3),
+    inset 3px 3px 5px rgba(255,255,255,.55),
+    0 0 10px var(--accent), 0 0 20px var(--accent-dim);
+}
+.tb-bead.current{animation:tbGlowPulse 1.4s ease-in-out infinite;}
+.tb-bead.fall{animation:tbAppear .4s cubic-bezier(.34,1.56,.64,1), tbGlowPulse 1.4s ease-in-out infinite;}
+@keyframes tbAppear{
+  0%{transform:scale(.3); opacity:0;}
+  70%{transform:scale(1.18); opacity:1;}
+  100%{transform:scale(1); opacity:1;}
+}
+@keyframes tbGlowPulse{
+  0%,100%{box-shadow: inset -3px -4px 5px rgba(0,0,0,.3), inset 3px 3px 5px rgba(255,255,255,.55), 0 0 10px var(--accent), 0 0 20px var(--accent-dim);}
+  50%{box-shadow: inset -3px -4px 5px rgba(0,0,0,.3), inset 3px 3px 5px rgba(255,255,255,.65), 0 0 20px var(--accent), 0 0 40px var(--accent);}
+}
+@media (prefers-reduced-motion: reduce){
+  .tb-bead.fall, .tb-bead.current{animation:none;}
+}
+
+/* ---------- house being built ---------- */
+.house-stage{display:flex; flex-direction:column; align-items:center; gap:16px; max-width:100%;}
+.house-wrap{position:relative; width:min(78vw, 300px); aspect-ratio:200/170;}
+.house-wrap.flash{animation:heartPulse .4s ease-out;}
+.house-base{position:absolute; inset:0;}
+.house-base svg{
+  width:100%; height:100%; display:block;
+  --house-wall:var(--surface-2); --house-door:var(--bg);
+  --house-frame:var(--line); --house-pane:var(--muted-2); --house-roof:var(--muted-2);
+  opacity:.55;
+}
+.house-fill-wrap{
+  position:absolute; inset:0; overflow:hidden;
+  clip-path:inset(var(--house-empty, 100%) 0 0 0);
+  transition:clip-path .55s cubic-bezier(.3,.7,.2,1);
+}
+.house-fill-wrap svg{
+  width:100%; height:100%; display:block;
+  --house-wall:var(--accent-dim); --house-door:var(--bg);
+  --house-frame:var(--accent); --house-pane:var(--accent); --house-roof:var(--accent);
+  filter:drop-shadow(0 0 10px var(--accent)) drop-shadow(0 0 22px var(--accent-dim));
+}
+.house-fill-wrap.flash svg{animation:heartGlow .6s ease-out;}
+.house-brick-fx{
+  position:absolute; left:50%; top:-6%;
+  width:34px; height:20px; margin-left:-17px;
+  border-radius:3px;
+  display:flex; align-items:center; justify-content:center;
+  font-family:var(--serif); font-weight:800; font-size:10px;
+  color:var(--bg); background:var(--accent);
+  box-shadow:0 0 8px var(--accent);
+  animation:brickFallFx .5s ease-in forwards;
+  pointer-events:none;
+}
+@keyframes brickFallFx{
+  0%{transform:translateY(0) scale(.9); opacity:0;}
+  30%{opacity:1;}
+  100%{transform:translateY(130%) scale(.55); opacity:0;}
+}
+@media (prefers-reduced-motion: reduce){
+  .house-wrap.flash{animation:none;}
+  .house-fill-wrap.flash svg{animation:none;}
+  .house-fill-wrap{transition:none;}
+  .house-brick-fx{display:none;}
+}
+
+/* ---------- custom glowing word ---------- */
+.word-stage{display:flex; flex-direction:column; align-items:center; gap:20px; max-width:100%;}
+.word-wrap{position:relative; display:inline-block; max-width:94vw;}
+.word-wrap.flash{animation:heartPulse .4s ease-out;}
+.word-text{
+  font-family:var(--serif);
+  font-weight:800;
+  font-size:clamp(90px, 34vw, 280px);
+  line-height:1.0;
+  text-align:center;
+  white-space:normal;
+  word-break:break-word;
+  padding:0 6px;
+}
+.word-phrase{
+  font-family:var(--serif);
+  font-weight:700;
+  font-size:clamp(26px, 7.5vw, 42px);
+  line-height:1.25;
+  color:var(--fg);
+  text-align:center;
+  max-width:90vw;
+}
+.word-count{
+  font-family:var(--serif);
+  font-weight:800;
+  font-size:clamp(30px, 8.5vw, 54px);
+  color:var(--accent);
+  font-variant-numeric:tabular-nums;
+}
+.word-base.word-text{
+  color:var(--accent);
+  opacity:.5;
+  filter:drop-shadow(0 0 10px var(--accent)) drop-shadow(0 0 26px var(--accent-dim));
+}
+.word-fill-clip{
+  position:absolute; inset:0;
+  opacity:var(--word-fill-opacity, 0);
+  transition:opacity .55s ease;
+}
+.word-fill.word-text{
+  color:var(--accent);
+  filter:drop-shadow(0 0 9px var(--accent)) drop-shadow(0 0 20px var(--accent-dim));
+}
+.word-fill-clip.flash .word-fill{animation:heartGlow .6s ease-out;}
+@media (prefers-reduced-motion: reduce){
+  .word-wrap.flash{animation:none;}
+  .word-fill-clip.flash .word-fill{animation:none;}
+  .word-fill-clip{transition:none;}
+}
+
+/* ---------- auto-count floating stop/start ---------- */
+.fab-auto{
+  position:fixed;
+  right:max(16px, env(safe-area-inset-right,0px));
+  bottom:calc(86px + env(safe-area-inset-bottom,0px));
+  z-index:16;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  border:1px solid var(--accent);
+  background:var(--accent-dim);
+  color:var(--fg);
+  border-radius:24px;
+  padding:11px 16px 11px 13px;
+  font-size:13px;
+  font-weight:700;
+  cursor:pointer;
+  box-shadow:0 10px 24px rgba(0,0,0,.4);
+}
+.fab-auto.running{
+  border-color:var(--danger-dim);
+  background:var(--danger-dim);
+  color:#f6dcd4;
+}
+.fab-auto svg{width:17px; height:17px; flex-shrink:0;}
+.fab-auto:active{filter:brightness(1.15);}
+.divider{height:1px; background:var(--line); border:0; margin:0;}
+[hidden]{display:none!important;}
+</style>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <h1>Чётки</h1>
+      <span class="word-preview" id="wordPreview">—</span>
+    </div>
+    <div class="header-btns">
+      <button class="icon-btn" id="fullscreenBtn" aria-label="На весь экран" hidden>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"></path><path d="M21 8V5a2 2 0 0 0-2-2h-3"></path><path d="M3 16v3a2 2 0 0 0 2 2h3"></path><path d="M16 21h3a2 2 0 0 0 2-2v-3"></path></svg>
+      </button>
+      <button class="icon-btn" id="openVoice" aria-label="Голосовой счёт">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v6a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v1a7 7 0 0 1-14 0v-1"></path><line x1="12" y1="18" x2="12" y2="22"></line><line x1="8" y1="22" x2="16" y2="22"></line></svg>
+      </button>
+      <button class="icon-btn" id="openStage" aria-label="Экран анимации">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v3"></path><path d="M12 18v3"></path><path d="M4.2 4.2l2.1 2.1"></path><path d="M17.7 17.7l2.1 2.1"></path><path d="M3 12h3"></path><path d="M18 12h3"></path><path d="M4.2 19.8l2.1-2.1"></path><path d="M17.7 6.3l2.1-2.1"></path><circle cx="12" cy="12" r="3.2"></circle></svg>
+      </button>
+      <button class="icon-btn" id="openList" aria-label="Список фраз">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+      </button>
+      <button class="icon-btn" id="openStats" aria-label="Статистика">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="20" x2="20" y2="20"></line><rect x="5" y="13" width="3.2" height="7"></rect><rect x="10.4" y="8" width="3.2" height="12"></rect><rect x="15.8" y="4" width="3.2" height="16"></rect></svg>
+      </button>
+      <button class="icon-btn" id="openSettings" aria-label="Настройки">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+      </button>
+    </div>
+  </div>
+</div>
+
+<div class="milestone" id="milestoneToast">
+  <span class="mtext" id="milestoneText">Круг: 100</span>
+  <button type="button" id="milestoneReset">Сброс</button>
+  <button type="button" id="milestoneContinue">Дальше</button>
+</div>
+
+<div class="milestone daily-toast" id="dailyToast">
+  <span class="mtext" id="dailyToastText">—</span>
+  <button type="button" id="dailyToastClose">Ок</button>
+</div>
+
+<div class="counter" id="counterArea">
+  <div class="counter-inner" id="counterInner">
+    <div class="empty-state" id="emptyState" hidden>
+      <div class="bead"></div>
+      <p>Список фраз пуст</p>
+      <div class="sub">Добавьте фразу для счёта в списке</div>
+      <button id="emptyAddBtn">Открыть список</button>
+    </div>
+    <div class="thread" id="thread" hidden></div>
+    <div class="tap-hint" id="tapHint" hidden>Нажимайте на экран — счёт продолжится</div>
+  </div>
+</div>
+
+<button type="button" class="fab-auto" id="fabAuto" aria-label="Запустить автосчёт">
+  <svg id="fabIcon" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"></path></svg>
+  <span id="fabLabel">Авто</span>
+</button>
+
+<div class="bottombar">
+  <div class="bottombar-inner">
+    <div class="total">
+      <span class="num" id="totalNum">0</span>
+      <span class="lbl">всего</span>
+    </div>
+    <div class="spacer"></div>
+    <button class="btn" id="undoBtn" hidden>Назад</button>
+    <button class="btn danger" id="resetBtn">Сбросить</button>
+  </div>
+</div>
+
+<div class="voice-overlay" id="voiceOverlay" hidden>
+  <div class="stage-top">
+    <button class="icon-btn" id="closeVoice" aria-label="Закрыть голосовой счёт">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18"></path><path d="M6 6l12 12"></path></svg>
+    </button>
+  </div>
+  <div class="voice-mid">
+    <div class="voice-content" id="voiceContent">
+      <div class="stage-word" id="voiceWord">—</div>
+      <div class="stage-num" id="voiceNum">0</div>
+    </div>
+    <div class="voice-field">
+      <label>Режим распознавания</label>
+      <div class="seg" id="voiceModeSeg">
+        <button type="button" data-mode="volume">По громкости (офлайн)</button>
+        <button type="button" data-mode="speech">По словам (нужен интернет)</button>
+      </div>
+      <div class="hint">«По громкости» — реагирует на любой звук громче фона, офлайн, может ловить лишнее. «По словам» — слушает именно вашу речь и считает, только если услышал саму фразу тасбиха, но для этого телефону нужен интернет</div>
+    </div>
+    <div class="voice-meter-wrap" id="voiceMeterWrap"><div class="voice-meter-fill" id="voiceMeterFill"></div></div>
+    <div class="voice-status" id="voiceListenStatus">Нажмите «Слушать», чтобы включить микрофон</div>
+    <button type="button" class="auto-btn" id="voiceListenBtn">Слушать</button>
+    <div class="voice-field" id="voiceSensField">
+      <label>Чувствительность</label>
+      <div class="sec-control">
+        <input type="range" id="voiceSensRange" min="1" max="10" step="1" value="6">
+        <span class="sec-value" id="voiceSensValue">6</span>
+      </div>
+      <div class="hint">Больше значение — реагирует даже на тихий голос. При нажатии «Слушать» первые секунды уходят на измерение фонового шума — помолчите немного, это снижает срабатывание на посторонние звуки</div>
+    </div>
+  </div>
+  <div class="stage-bottom">Говорите фразу вслух или тихо — счёт добавится сам</div>
+</div>
+
+<div class="stage-overlay" id="stageOverlay" hidden>
+  <div class="stage-top">
+    <button class="icon-btn" id="closeStage" aria-label="Закрыть экран анимации">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18"></path><path d="M6 6l12 12"></path></svg>
+    </button>
+  </div>
+  <div class="stage-mid" id="stageMid">
+    <div class="stage-content" id="stageContent">
+      <div class="stage-word" id="stageWord">—</div>
+      <div class="stage-num" id="stageNum">0</div>
+    </div>
+    <div class="heart-stage" id="heartStage" hidden>
+      <div class="heart-wrap" id="heartWrap">
+        <svg class="heart-outline" id="heartOutline" viewBox="0 0 32 29" aria-hidden="true">
+          <path d="M16 28.5C16 28.5 1.5 19 1.5 9.8C1.5 4.6 5.6 1.5 9.8 1.5C13 1.5 15.2 3.6 16 6.8C16.8 3.6 19 1.5 22.2 1.5C26.4 1.5 30.5 4.6 30.5 9.8C30.5 19 16 28.5 16 28.5Z"/>
+        </svg>
+        <div class="heart-liquid" id="heartLiquid">
+          <svg viewBox="0 0 32 29" aria-hidden="true">
+            <path d="M16 28.5C16 28.5 1.5 19 1.5 9.8C1.5 4.6 5.6 1.5 9.8 1.5C13 1.5 15.2 3.6 16 6.8C16.8 3.6 19 1.5 22.2 1.5C26.4 1.5 30.5 4.6 30.5 9.8C30.5 19 16 28.5 16 28.5Z"/>
+          </svg>
+        </div>
+      </div>
+      <div class="stage-word" id="heartWord">—</div>
+      <div class="stage-num" id="heartNum">0</div>
+    </div>
+    <div class="forest-stage" id="forestStage" hidden>
+      <div class="stage-word" id="forestWord">—</div>
+      <div class="forest-grid" id="forestGrid"></div>
+      <div class="forest-caption" id="forestCaption">Посажено: 0 из 100</div>
+      <div class="stage-num" id="forestNum">0</div>
+    </div>
+    <div class="beads-stage" id="beadsStage" hidden>
+      <div class="stage-word" id="beadsWord">—</div>
+      <div class="beads-row" id="beadsRow"></div>
+      <div class="forest-caption" id="beadsCaption">0 / 100</div>
+      <div class="stage-num" id="beadsNum">0</div>
+    </div>
+    <div class="bricks-stage" id="bricksStage" hidden>
+      <div class="stage-word" id="bricksWord">—</div>
+      <div class="bricks-row" id="bricksRow"></div>
+      <div class="forest-caption" id="bricksCaption">0 / 100</div>
+      <div class="stage-num" id="bricksNum">0</div>
+    </div>
+    <div class="marquee-stage" id="marqueeStage" hidden>
+      <div class="marquee-track" id="marqueeTrack">
+        <span class="marquee-text" id="marqueeText1">—</span>
+        <span class="marquee-text" id="marqueeText2">—</span>
+      </div>
+      <div class="marquee-count" id="marqueeNum">0</div>
+    </div>
+    <div class="text-wall-stage" id="textWallStage" hidden>
+      <div class="stage-word" id="textWallWord">—</div>
+      <div class="text-wall-wrap" id="textWallWrap"></div>
+      <div class="forest-caption" id="textWallCaption">0 / 100</div>
+      <div class="stage-num" id="textWallNum">0</div>
+    </div>
+    <div class="heart-mosaic-stage" id="heartMosaicStage" hidden>
+      <svg width="0" height="0" style="position:absolute;" aria-hidden="true">
+        <defs>
+          <clipPath id="heartMosaicClipPath" clipPathUnits="objectBoundingBox">
+            <path d="M0.5 0.9828 C0.5 0.9828 0.0469 0.6552 0.0469 0.3379 C0.0469 0.1586 0.175 0.0517 0.3063 0.0517 C0.4063 0.0517 0.475 0.1241 0.5 0.2345 C0.525 0.1241 0.5938 0.0517 0.6938 0.0517 C0.825 0.0517 0.9531 0.1586 0.9531 0.3379 C0.9531 0.6552 0.5 0.9828 0.5 0.9828 Z"/>
+          </clipPath>
+        </defs>
+      </svg>
+      <div class="heart-mosaic-wrap" id="heartMosaicWrap">
+        <svg class="heart-mosaic-outline" viewBox="0 0 32 29" aria-hidden="true">
+          <path d="M16 28.5C16 28.5 1.5 19 1.5 9.8C1.5 4.6 5.6 1.5 9.8 1.5C13 1.5 15.2 3.6 16 6.8C16.8 3.6 19 1.5 22.2 1.5C26.4 1.5 30.5 4.6 30.5 9.8C30.5 19 16 28.5 16 28.5Z"/>
+        </svg>
+        <div class="heart-mosaic-grid" id="heartMosaicGrid"></div>
+      </div>
+      <div class="stage-word" id="heartMosaicWord">—</div>
+      <div class="stage-num" id="heartMosaicNum">0</div>
+      <div class="forest-caption" id="heartMosaicCaption">0 / 100</div>
+    </div>
+    <div class="thread-beads-stage" id="threadBeadsStage" hidden>
+      <div class="thread-beads-wrap">
+        <div class="thread-beads-row" id="threadBeadsRow"></div>
+      </div>
+      <div class="stage-word" id="threadBeadsWord">—</div>
+      <div class="stage-num" id="threadBeadsNum">0</div>
+      <div class="forest-caption" id="threadBeadsCaption">0 / 100</div>
+    </div>
+    <div class="house-stage" id="houseStage" hidden>
+      <div class="house-wrap" id="houseWrap">
+        <div class="house-base">
+          <svg viewBox="0 0 200 170" aria-hidden="true">
+            <polygon points="14,74 186,74 100,18"></polygon>
+            <rect x="34" y="74" width="132" height="86"></rect>
+            <rect x="84" y="118" width="32" height="42" rx="2" fill="var(--house-door)"></rect>
+            <circle cx="108" cy="139" r="2.2" fill="var(--house-frame)"></circle>
+            <rect x="48" y="90" width="26" height="26" rx="2" fill="var(--house-frame)"></rect>
+            <rect x="51" y="93" width="20" height="20" fill="var(--house-pane)"></rect>
+            <line x1="61" y1="93" x2="61" y2="113" stroke="var(--house-frame)" stroke-width="1.6"></line>
+            <line x1="51" y1="103" x2="71" y2="103" stroke="var(--house-frame)" stroke-width="1.6"></line>
+            <rect x="126" y="90" width="26" height="26" rx="2" fill="var(--house-frame)"></rect>
+            <rect x="129" y="93" width="20" height="20" fill="var(--house-pane)"></rect>
+            <line x1="139" y1="93" x2="139" y2="113" stroke="var(--house-frame)" stroke-width="1.6"></line>
+            <line x1="129" y1="103" x2="149" y2="103" stroke="var(--house-frame)" stroke-width="1.6"></line>
+          </svg>
+        </div>
+        <div class="house-fill-wrap" id="houseFillWrap">
+          <svg viewBox="0 0 200 170" aria-hidden="true">
+            <polygon points="14,74 186,74 100,18" fill="var(--house-roof)"></polygon>
+            <rect x="34" y="74" width="132" height="86" fill="var(--house-wall)"></rect>
+            <rect x="84" y="118" width="32" height="42" rx="2" fill="var(--house-door)"></rect>
+            <circle cx="108" cy="139" r="2.2" fill="var(--house-frame)"></circle>
+            <rect x="48" y="90" width="26" height="26" rx="2" fill="var(--house-frame)"></rect>
+            <rect x="51" y="93" width="20" height="20" fill="var(--house-pane)"></rect>
+            <line x1="61" y1="93" x2="61" y2="113" stroke="var(--house-frame)" stroke-width="1.6"></line>
+            <line x1="51" y1="103" x2="71" y2="103" stroke="var(--house-frame)" stroke-width="1.6"></line>
+            <rect x="126" y="90" width="26" height="26" rx="2" fill="var(--house-frame)"></rect>
+            <rect x="129" y="93" width="20" height="20" fill="var(--house-pane)"></rect>
+            <line x1="139" y1="93" x2="139" y2="113" stroke="var(--house-frame)" stroke-width="1.6"></line>
+            <line x1="129" y1="103" x2="149" y2="103" stroke="var(--house-frame)" stroke-width="1.6"></line>
+          </svg>
+        </div>
+      </div>
+      <div class="stage-word" id="houseWord">—</div>
+      <div class="stage-num" id="houseNum">0</div>
+    </div>
+    <div class="word-stage" id="wordStage" hidden>
+      <div class="word-wrap" id="wordWrap">
+        <div class="word-base word-text" id="wordBase">—</div>
+        <div class="word-fill-clip" id="wordFillClip"><div class="word-fill word-text" id="wordFillText">—</div></div>
+      </div>
+      <div class="word-phrase" id="wordPhraseLabel">—</div>
+      <div class="word-count" id="wordNum">0</div>
+    </div>
+  </div>
+  <div class="stage-bottom">Нажимайте в любом месте экрана — счёт продолжится</div>
+</div>
+
+<div class="sheet-overlay" id="statsOverlay" hidden>
+  <div class="sheet">
+    <div class="sheet-head">
+      <h2>Статистика</h2>
+      <button class="icon-btn" id="closeStats" aria-label="Закрыть">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18"></path><path d="M6 6l12 12"></path></svg>
+      </button>
+    </div>
+    <div class="sheet-body">
+      <div class="stats-grid">
+        <div class="stats-card">
+          <div class="stats-label">Сегодня</div>
+          <div class="stats-value" id="statsToday">0</div>
+        </div>
+        <div class="stats-card">
+          <div class="stats-label">За неделю</div>
+          <div class="stats-value" id="statsWeek">0</div>
+        </div>
+        <div class="stats-card">
+          <div class="stats-label">За месяц</div>
+          <div class="stats-value" id="statsMonth">0</div>
+        </div>
+      </div>
+      <div class="stats-compare" id="statsCompare">—</div>
+      <div class="stats-week">
+        <label style="display:block; margin-bottom:10px; font-size:13px; color:var(--muted);">Последние 7 дней</label>
+        <div class="stats-week-row" id="statsWeekRow"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="sheet-overlay" id="listOverlay" hidden>
+  <div class="sheet">
+    <div class="sheet-head">
+      <h2>Список фраз</h2>
+      <button class="icon-btn" id="closeList" aria-label="Закрыть">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18"></path><path d="M6 6l12 12"></path></svg>
+      </button>
+    </div>
+    <div class="sheet-body">
+      <div class="plist" id="plist"></div>
+      <div class="add-row">
+        <input type="text" id="addInput" placeholder="Новая фраза" autocomplete="off">
+        <button id="addBtn">Добавить</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="sheet-overlay" id="settingsOverlay" hidden>
+  <div class="sheet">
+    <div class="sheet-head">
+      <h2>Настройки</h2>
+      <button class="icon-btn" id="closeSettings" aria-label="Закрыть">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18"></path><path d="M6 6l12 12"></path></svg>
+      </button>
+    </div>
+    <div class="sheet-body">
+      <div class="field">
+        <label>Цвет приложения</label>
+        <div class="swatches" id="themeSwatches">
+          <button type="button" class="swatch" data-theme="dark" aria-label="Тёмный"></button>
+          <button type="button" class="swatch" data-theme="green" aria-label="Зелёный"></button>
+        </div>
+        <div class="swatch-labels"><span>Тёмный</span><span>Зелёный</span></div>
+      </div>
+
+      <hr class="divider">
+
+      <div class="field">
+        <label>Экран анимации</label>
+        <div class="hint" style="margin:0 0 12px;">Тёмный полноэкранный вид: слово и число появляются с анимацией при каждом касании.</div>
+        <button type="button" class="auto-btn" id="stageOpenFromSettings">Открыть экран анимации</button>
+        <div class="hint" style="margin:12px 0 8px;">Анимация текста</div>
+        <div class="seg" id="animSeg">
+          <button type="button" data-anim="pulse">Пульс</button>
+          <button type="button" data-anim="blur">Фокус</button>
+          <button type="button" data-anim="heart-fill">Сердце: наполняется</button>
+          <button type="button" data-anim="word">Слово</button>
+          <button type="button" data-anim="beads">Бусины</button>
+          <button type="button" data-anim="bricks">Кирпичи</button>
+          <button type="button" data-anim="heart-mosaic">Сердце: звёзды</button>
+          <button type="button" data-anim="thread-beads">Чётки на нитке</button>
+          <button type="button" data-anim="text-wall">Текст кирпичиками</button>
+          <button type="button" data-anim="marquee">Бегущая строка</button>
+        </div>
+        <div class="hint" style="margin-top:8px;">«Сердце: наполняется» — вначале пустое сердце заполняется светом с каждым счётом. «Слово» — любое своё слово (например «Аллах» или «Мухаммад») понемногу наполняется светом снизу вверх и ярко вспыхивает при каждом счёте. «Бусины» — с каждым тасбихом сверху падает новая бусина со своим номером и встаёт в ряд внизу. «Кирпичи» — то же самое, но кирпичиками, и круг можно задать вплоть до 505. «Сердце: звёзды» — большое сердце собрано из бусин (до 100 штук); с каждым счётом в случайном месте внутри сердца ярко загорается, как звезда, бусина с вашим текстом, пока сердце целиком не заполнится светящимися бусинами. «Чётки на нитке» — крупные бусины чёток на нитке (до 100 штук); при каждом счёте загорается следующая бусина по очереди, а текущая ярко светится. «Текст кирпичиками» — пустой экран заполняется мелким текстом вашей фразы вместо кирпичиков: с каждым счётом добавляется ещё одна надпись, пока экран не заполнится целиком. «Бегущая строка» — ваш текст крупными яркими светящимися буквами бежит по экрану; скорость и мигание настраиваются ниже. На числе круга (из поля «Сигнал о круге» выше) круг завершается и начинается заново</div>
+        <div class="field" style="margin-top:14px;">
+          <label for="customWordInput">Своё слово для анимации «Слово»</label>
+          <input type="text" id="customWordInput" placeholder="например: Аллах" autocomplete="off">
+          <div class="hint">Если оставить пустым, покажется текущая фраза счёта</div>
+        </div>
+        <div class="field" style="margin-top:14px;">
+          <label for="chipLabelInput">Своя подпись на бусинах / кирпичах</label>
+          <input type="text" id="chipLabelInput" placeholder="например: Аллах" autocomplete="off">
+          <div class="hint">Мелкая надпись под номером на каждой бусине и кирпичике в анимациях «Бусины», «Кирпичи» и «Домик». Если оставить пустым — покажется только номер</div>
+        </div>
+        <div class="field" style="margin-top:14px;">
+          <label for="mosaicTextInput">Свой текст для анимации «Сердце: звёзды»</label>
+          <input type="text" id="mosaicTextInput" placeholder="например: Аллах" autocomplete="off">
+          <div class="hint">Этот текст появится в каждой загорающейся клетке сердца. Если оставить пустым — покажется текущая фраза счёта</div>
+        </div>
+        <div class="field" style="margin-top:14px;">
+          <label for="marqueeTextInput">Текст для «Бегущей строки»</label>
+          <input type="text" id="marqueeTextInput" placeholder="Введите любой свой текст" autocomplete="off">
+          <div class="hint">Если оставить пустым, побежит текущая фраза счёта</div>
+        </div>
+        <div class="field" style="margin-top:14px;">
+          <label for="marqueeSpeedRange">Скорость бегущей строки</label>
+          <div class="sec-control">
+            <input type="range" id="marqueeSpeedRange" min="3" max="30" step="1" value="12">
+            <span class="sec-value" id="marqueeSpeedValue">12 сек</span>
+          </div>
+        </div>
+        <div class="field" style="margin-top:14px;">
+          <label>Мигание бегущей строки</label>
+          <div class="seg" id="marqueeBlinkSeg">
+            <button type="button" data-blink="none">Без мигания</button>
+            <button type="button" data-blink="slow">Медленно</button>
+            <button type="button" data-blink="fast">Быстро</button>
+            <button type="button" data-blink="pulse">Пульс свечения</button>
+            <button type="button" data-blink="strobe">Вспышки</button>
+          </div>
+          <div class="sec-control" style="margin-top:10px;">
+            <input type="range" id="marqueeBlinkSpeedRange" min="0.2" max="3" step="0.1" value="1.2">
+            <span class="sec-value" id="marqueeBlinkSpeedValue">1.2 сек</span>
+          </div>
+          <div class="hint">Скорость мигания действует, если выбран любой режим, кроме «Без мигания»</div>
+        </div>
+      </div>
+
+      <hr class="divider">
+
+      <div class="field">
+        <label>Звук при счёте</label>
+        <div class="seg" id="soundSeg">
+          <button type="button" data-mode="none">Выкл</button>
+          <button type="button" data-mode="tick">Тик</button>
+          <button type="button" data-mode="heartbeat">Сердце</button>
+          <button type="button" data-mode="voice">Голос</button>
+        </div>
+        <div class="hint" style="margin:10px 0 0;">«Тик» и «Сердце» — встроенные звуки, запись не нужна</div>
+      </div>
+
+      <hr class="divider">
+
+      <div class="field">
+        <label>Своя запись голоса</label>
+        <div class="voice-row">
+          <span class="file-btn btn">Загрузить запись<input type="file" id="voiceInput" accept="audio/*"></span>
+          <button class="btn danger" id="removeVoice" hidden>Удалить</button>
+        </div>
+        <div class="voice-name" id="voiceName">запись не добавлена</div>
+        <div class="status-msg" id="voiceStatus"></div>
+        <div class="hint" style="margin-top:8px;">Чтобы услышать её при счёте, выберите «Голос» выше</div>
+      </div>
+
+      <hr class="divider">
+
+      <div class="field">
+        <label>Сигнал о круге</label>
+        <div class="hint" style="margin:0 0 10px;">Другой звук и подсказка, когда счёт дойдёт до этого числа (например 33 или 100). Дальше можно сбросить или продолжить — счёт не останавливается.</div>
+        <input type="number" id="targetInput" min="0" step="1" value="100" style="width:100%; background:var(--surface-2); border:1px solid var(--line); color:var(--fg); border-radius:10px; padding:12px 14px; font-size:16px; font-family:var(--serif);">
+        <div class="hint" style="margin-top:6px;">0 — выключить сигнал</div>
+      </div>
+
+      <hr class="divider">
+
+      <div class="field">
+        <label>Автоматический счёт</label>
+        <div class="hint" style="margin:0 0 12px;">Счёт повторяется сам с заданным интервалом. Кнопка «Авто» на главном экране запускает и останавливает его в любой момент, без захода сюда.</div>
+        <div class="sec-control">
+          <input type="range" id="secRange" min="1" max="30" step="1" value="3">
+          <span class="sec-value" id="secValue">3 сек</span>
+        </div>
+        <button class="auto-btn" id="autoToggle" style="margin-top:14px;">Запустить</button>
+      </div>
+
+      <hr class="divider">
+
+      <div class="field">
+        <label>Без интернета</label>
+        <div class="offline-note">Приложение хранит счёт, список фраз, голос и выбранный цвет прямо в этом браузере и не обращается к интернету во время счёта. Эту страницу можно также скачать одним файлом и открыть прямо на телефоне или компьютере — тогда интернет не нужен вообще, даже для первого открытия.</div>
+      </div>
+
+      <hr class="divider">
+
+      <div class="field">
+        <label>Иконка на экране «Домой»</label>
+        <div class="offline-note">iPhone: откройте ссылку в Safari → кнопка «Поделиться» → «На экран «Домой»».<br>Android: откройте ссылку в Chrome → меню (⋮) → «Добавить на главный экран».</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  "use strict";
+  var STORE_KEY = 'chotki.v2';
+  var MAX_HISTORY = 400;
+  var MAX_AUDIO_BYTES = 3 * 1024 * 1024;
+
+  function uid(){
+    return 'c' + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+  }
+
+  /* ---------- daily / weekly / monthly stats ---------- */
+  function pad2(n){ return n < 10 ? '0' + n : '' + n; }
+  function dayKey(d){ return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()); }
+  function startOfDay(d){ var x = new Date(d); x.setHours(0,0,0,0); return x; }
+  function mondayOfWeek(d){
+    var x = startOfDay(d);
+    var dow = (x.getDay() + 6) % 7; // 0 = Monday
+    x.setDate(x.getDate() - dow);
+    return x;
+  }
+  function sumDailyRange(start, end){
+    var sum = 0;
+    var cur = startOfDay(start);
+    var last = startOfDay(end);
+    while(cur <= last){
+      sum += state.dailyLog[dayKey(cur)] || 0;
+      cur.setDate(cur.getDate() + 1);
+    }
+    return sum;
+  }
+  function pruneDailyLog(){
+    var keys = Object.keys(state.dailyLog);
+    if(keys.length <= 400) return;
+    keys.sort();
+    var excess = keys.length - 400;
+    for(var i = 0; i < excess; i++){ delete state.dailyLog[keys[i]]; }
+  }
+  function logDailyTap(delta){
+    var k = dayKey(new Date());
+    state.dailyLog[k] = Math.max(0, (state.dailyLog[k] || 0) + delta);
+    pruneDailyLog();
+  }
+  var dailyToastTimer = null;
+  function showDailyToast(text, kind){
+    dailyToastText.textContent = text;
+    dailyToast.classList.remove('warn','ok');
+    dailyToast.classList.add(kind);
+    dailyToast.classList.add('show');
+    clearTimeout(dailyToastTimer);
+    dailyToastTimer = setTimeout(function(){ dailyToast.classList.remove('show'); }, 5500);
+  }
+  function checkDailyNotify(){
+    var now = new Date();
+    var tKey = dayKey(now);
+    var todayCount = state.dailyLog[tKey] || 0;
+    var yDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+    var yKey = dayKey(yDate);
+    var yesterdayCount = state.dailyLog[yKey] || 0;
+    if(yesterdayCount <= 0) return;
+    if(todayCount < yesterdayCount){
+      if(state.notify.behindDate !== tKey){
+        state.notify.behindDate = tKey;
+        saveState();
+        showDailyToast('Пока меньше, чем вчера: ' + todayCount + ' из ' + yesterdayCount + '. Можно ещё почитать тасбих сегодня', 'warn');
+      }
+    } else {
+      var prevCount = todayCount - 1;
+      if(state.notify.aheadDate !== tKey && prevCount < yesterdayCount && todayCount > 0){
+        state.notify.aheadDate = tKey;
+        saveState();
+        showDailyToast('Вы обогнали вчерашний день: ' + todayCount + ' против ' + yesterdayCount + '!', 'ok');
+      }
+    }
+  }
+  function renderStatsView(){
+    var now = new Date();
+    var tKey = dayKey(now);
+    var todayCount = state.dailyLog[tKey] || 0;
+    var weekStart = mondayOfWeek(now);
+    var weekCount = sumDailyRange(weekStart, now);
+    var monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    var monthCount = sumDailyRange(monthStart, now);
+    statsToday.textContent = todayCount;
+    statsWeek.textContent = weekCount;
+    statsMonth.textContent = monthCount;
+
+    var yDate = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+    var yesterdayCount = state.dailyLog[dayKey(yDate)] || 0;
+    if(yesterdayCount <= 0){
+      statsCompare.className = 'stats-compare';
+      statsCompare.textContent = 'Вчера записей ещё нет — начните считать, чтобы было с чем сравнивать';
+    } else if(todayCount < yesterdayCount){
+      statsCompare.className = 'stats-compare warn';
+      statsCompare.textContent = 'Отстаёте от вчерашнего дня на ' + (yesterdayCount - todayCount) + ' (вчера: ' + yesterdayCount + ')';
+    } else if(todayCount === yesterdayCount){
+      statsCompare.className = 'stats-compare';
+      statsCompare.textContent = 'Ровно столько же, сколько вчера: ' + todayCount;
+    } else {
+      statsCompare.className = 'stats-compare ok';
+      statsCompare.textContent = 'Опережаете вчерашний день на ' + (todayCount - yesterdayCount) + ' (вчера: ' + yesterdayCount + ')';
+    }
+
+    var dayNames = ['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
+    var days = [];
+    for(var i = 6; i >= 0; i--){
+      var d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i);
+      days.push({ d: d, count: state.dailyLog[dayKey(d)] || 0, isToday: i === 0 });
+    }
+    var maxCount = Math.max(1, Math.max.apply(null, days.map(function(x){ return x.count; })));
+    statsWeekRow.innerHTML = '';
+    var frag = document.createDocumentFragment();
+    days.forEach(function(item){
+      var col = document.createElement('div');
+      col.className = 'stats-bar-col';
+      var valEl = document.createElement('div');
+      valEl.className = 'stats-bar-val';
+      valEl.textContent = item.count;
+      var bar = document.createElement('div');
+      bar.className = 'stats-bar' + (item.isToday ? ' today' : '');
+      var h = Math.max(3, Math.round((item.count / maxCount) * 90));
+      bar.style.height = h + 'px';
+      var dayEl = document.createElement('div');
+      dayEl.className = 'stats-bar-day';
+      dayEl.textContent = dayNames[(item.d.getDay() + 6) % 7];
+      col.appendChild(valEl);
+      col.appendChild(bar);
+      col.appendChild(dayEl);
+      frag.appendChild(col);
+    });
+    statsWeekRow.appendChild(frag);
+  }
+  function openStatsView(){
+    renderStatsView();
+    statsOverlay.hidden = false;
+  }
+
+  function defaultCounters(){
+    var items = [
+      ['СубханаЛлах', 'Пречист Аллах'],
+      ['Альхамдулиллях', 'Хвала Аллаху'],
+      ['Аллаху Акбар', 'Аллах Велик'],
+      ['Ля иляха илля Ллах', 'Нет бога, кроме Аллаха'],
+      ['Астагфируллах', 'Прошу прощения у Аллаха'],
+      ['Ля хавля ва ля куввата илля биЛлях', 'Нет мощи и силы, кроме как от Аллаха'],
+      ['СубханаЛлахи ва бихамдихи', 'Пречист Аллах, и хвала Ему']
+    ];
+    return items.map(function(it){ return { id: uid(), label: it[0], note: it[1], count: 0, history: [] }; });
+  }
+
+  var state = {
+    counters: null,
+    activeId: null,
+    soundMode: 'none',
+    audioData: null,
+    audioName: '',
+    autoSec: 3,
+    theme: 'dark',
+    target: 100,
+    animStyle: 'pulse',
+    voiceSensitivity: 6,
+    customWord: '',
+    voiceMode: 'volume',
+    chipLabel: '',
+    mosaicText: '',
+    dailyLog: {},
+    notify: { behindDate: null, aheadDate: null },
+    marqueeText: '',
+    marqueeSpeed: 12,
+    marqueeBlinkMode: 'none',
+    marqueeBlinkSpeed: 1.2
+  };
+
+  function loadState(){
+    var migratedPlaySound, migratedHadAudio;
+    try{
+      var raw = localStorage.getItem(STORE_KEY);
+      if(raw){
+        var parsed = JSON.parse(raw);
+        migratedPlaySound = parsed.playSound;
+        migratedHadAudio = parsed.audioData;
+        for(var k in state){ if(parsed.hasOwnProperty(k)) state[k] = parsed[k]; }
+        if(!parsed.hasOwnProperty('soundMode')){
+          state.soundMode = (migratedPlaySound && migratedHadAudio) ? 'voice' : 'none';
+        }
+      }
+    }catch(e){ /* storage unavailable or corrupt — start fresh */ }
+    if(!state.counters || !state.counters.length){
+      state.counters = defaultCounters();
+    }
+    if(!state.activeId || !state.counters.some(function(c){return c.id===state.activeId;})){
+      state.activeId = state.counters[0] ? state.counters[0].id : null;
+    }
+  }
+  function saveState(){
+    try{ localStorage.setItem(STORE_KEY, JSON.stringify(state)); }
+    catch(e){ /* quota exceeded or storage blocked — continue without persistence */ }
+  }
+
+  loadState();
+
+  function getActive(){
+    return state.counters.find(function(c){ return c.id === state.activeId; }) || null;
+  }
+
+  var wordPreview = document.getElementById('wordPreview');
+  var counterArea = document.getElementById('counterArea');
+  var emptyState = document.getElementById('emptyState');
+  var emptyAddBtn = document.getElementById('emptyAddBtn');
+  var thread = document.getElementById('thread');
+  var tapHint = document.getElementById('tapHint');
+  var totalNum = document.getElementById('totalNum');
+  var resetBtn = document.getElementById('resetBtn');
+  var undoBtn = document.getElementById('undoBtn');
+
+  var fullscreenBtn = document.getElementById('fullscreenBtn');
+  var openVoice = document.getElementById('openVoice');
+  var voiceOverlay = document.getElementById('voiceOverlay');
+  var closeVoice = document.getElementById('closeVoice');
+  var voiceContent = document.getElementById('voiceContent');
+  var voiceWord = document.getElementById('voiceWord');
+  var voiceNum = document.getElementById('voiceNum');
+  var voiceModeSeg = document.getElementById('voiceModeSeg');
+  var voiceMeterWrap = document.getElementById('voiceMeterWrap');
+  var voiceMeterFill = document.getElementById('voiceMeterFill');
+  var voiceListenStatus = document.getElementById('voiceListenStatus');
+  var voiceListenBtn = document.getElementById('voiceListenBtn');
+  var voiceSensField = document.getElementById('voiceSensField');
+  var voiceSensRange = document.getElementById('voiceSensRange');
+  var voiceSensValue = document.getElementById('voiceSensValue');
+  var openStage = document.getElementById('openStage');
+  var stageOverlay = document.getElementById('stageOverlay');
+  var closeStage = document.getElementById('closeStage');
+  var stageMid = document.getElementById('stageMid');
+  var stageContent = document.getElementById('stageContent');
+  var stageWord = document.getElementById('stageWord');
+  var stageNum = document.getElementById('stageNum');
+  var heartStage = document.getElementById('heartStage');
+  var heartWrap = document.getElementById('heartWrap');
+  var heartLiquid = document.getElementById('heartLiquid');
+  var heartOutline = document.getElementById('heartOutline');
+  var heartWord = document.getElementById('heartWord');
+  var heartNum = document.getElementById('heartNum');
+  var forestStage = document.getElementById('forestStage');
+  var forestWord = document.getElementById('forestWord');
+  var forestGrid = document.getElementById('forestGrid');
+  var forestCaption = document.getElementById('forestCaption');
+  var forestNum = document.getElementById('forestNum');
+  var beadsStage = document.getElementById('beadsStage');
+  var beadsWord = document.getElementById('beadsWord');
+  var beadsRow = document.getElementById('beadsRow');
+  var beadsCaption = document.getElementById('beadsCaption');
+  var beadsNum = document.getElementById('beadsNum');
+  var bricksStage = document.getElementById('bricksStage');
+  var bricksWord = document.getElementById('bricksWord');
+  var bricksRow = document.getElementById('bricksRow');
+  var bricksCaption = document.getElementById('bricksCaption');
+  var bricksNum = document.getElementById('bricksNum');
+  var wordStage = document.getElementById('wordStage');
+  var wordPhraseLabel = document.getElementById('wordPhraseLabel');
+  var wordWrap = document.getElementById('wordWrap');
+  var wordBase = document.getElementById('wordBase');
+  var wordFillClip = document.getElementById('wordFillClip');
+  var wordFillText = document.getElementById('wordFillText');
+  var wordNum = document.getElementById('wordNum');
+  var marqueeStage = document.getElementById('marqueeStage');
+  var marqueeTrack = document.getElementById('marqueeTrack');
+  var marqueeText1 = document.getElementById('marqueeText1');
+  var marqueeText2 = document.getElementById('marqueeText2');
+  var marqueeNum = document.getElementById('marqueeNum');
+  var marqueeTextInput = document.getElementById('marqueeTextInput');
+  var marqueeSpeedRange = document.getElementById('marqueeSpeedRange');
+  var marqueeSpeedValue = document.getElementById('marqueeSpeedValue');
+  var marqueeBlinkSeg = document.getElementById('marqueeBlinkSeg');
+  var marqueeBlinkSpeedRange = document.getElementById('marqueeBlinkSpeedRange');
+  var marqueeBlinkSpeedValue = document.getElementById('marqueeBlinkSpeedValue');
+  var textWallStage = document.getElementById('textWallStage');
+  var textWallWord = document.getElementById('textWallWord');
+  var textWallWrap = document.getElementById('textWallWrap');
+  var textWallCaption = document.getElementById('textWallCaption');
+  var textWallNum = document.getElementById('textWallNum');
+  var heartMosaicStage = document.getElementById('heartMosaicStage');
+  var heartMosaicWrap = document.getElementById('heartMosaicWrap');
+  var heartMosaicGrid = document.getElementById('heartMosaicGrid');
+  var heartMosaicWord = document.getElementById('heartMosaicWord');
+  var heartMosaicNum = document.getElementById('heartMosaicNum');
+  var heartMosaicCaption = document.getElementById('heartMosaicCaption');
+  var mosaicTextInput = document.getElementById('mosaicTextInput');
+  var threadBeadsStage = document.getElementById('threadBeadsStage');
+  var threadBeadsRow = document.getElementById('threadBeadsRow');
+  var threadBeadsWord = document.getElementById('threadBeadsWord');
+  var threadBeadsNum = document.getElementById('threadBeadsNum');
+  var threadBeadsCaption = document.getElementById('threadBeadsCaption');
+  var houseStage = document.getElementById('houseStage');
+  var houseWrap = document.getElementById('houseWrap');
+  var houseFillWrap = document.getElementById('houseFillWrap');
+  var houseWord = document.getElementById('houseWord');
+  var houseNum = document.getElementById('houseNum');
+  var customWordInput = document.getElementById('customWordInput');
+  var chipLabelInput = document.getElementById('chipLabelInput');
+  var fabAuto = document.getElementById('fabAuto');
+  var fabIcon = document.getElementById('fabIcon');
+  var fabLabel = document.getElementById('fabLabel');
+  var stageOpenFromSettings = document.getElementById('stageOpenFromSettings');
+  var animSeg = document.getElementById('animSeg');
+  var openList = document.getElementById('openList');
+  var openStats = document.getElementById('openStats');
+  var statsOverlay = document.getElementById('statsOverlay');
+  var closeStats = document.getElementById('closeStats');
+  var statsToday = document.getElementById('statsToday');
+  var statsWeek = document.getElementById('statsWeek');
+  var statsMonth = document.getElementById('statsMonth');
+  var statsCompare = document.getElementById('statsCompare');
+  var statsWeekRow = document.getElementById('statsWeekRow');
+  var dailyToast = document.getElementById('dailyToast');
+  var dailyToastText = document.getElementById('dailyToastText');
+  var dailyToastClose = document.getElementById('dailyToastClose');
+  var closeList = document.getElementById('closeList');
+  var listOverlay = document.getElementById('listOverlay');
+  var plist = document.getElementById('plist');
+  var addInput = document.getElementById('addInput');
+  var addBtn = document.getElementById('addBtn');
+
+  var openSettings = document.getElementById('openSettings');
+  var closeSettings = document.getElementById('closeSettings');
+  var settingsOverlay = document.getElementById('settingsOverlay');
+  var voiceInput = document.getElementById('voiceInput');
+  var voiceName = document.getElementById('voiceName');
+  var voiceStatus = document.getElementById('voiceStatus');
+  var removeVoice = document.getElementById('removeVoice');
+  var themeSwatches = document.getElementById('themeSwatches');
+  var soundSeg = document.getElementById('soundSeg');
+  var targetInput = document.getElementById('targetInput');
+  var milestoneToast = document.getElementById('milestoneToast');
+  var milestoneText = document.getElementById('milestoneText');
+  var milestoneReset = document.getElementById('milestoneReset');
+  var milestoneContinue = document.getElementById('milestoneContinue');
+  var secRange = document.getElementById('secRange');
+  var secValue = document.getElementById('secValue');
+  var autoToggle = document.getElementById('autoToggle');
+
+  var audioEl = null;
+  var audioCtx = null;
+  var autoRunning = false;
+  var autoPollId = null;
+  var autoNextTick = 0;
+  var resetArmed = false;
+  var resetArmTimeout = null;
+  var ICON_PLAY = '<path d="M8 5v14l11-7z"></path>';
+  var ICON_STOP = '<rect x="6" y="6" width="12" height="12" rx="2"></rect>';
+
+  function playVoice(){
+    if(!state.audioData) return;
+    try{
+      if(!audioEl){ audioEl = new Audio(); }
+      audioEl.src = state.audioData;
+      audioEl.currentTime = 0;
+      var p = audioEl.play();
+      if(p && p.catch) p.catch(function(){ /* blocked until a user gesture occurs */ });
+    }catch(e){ /* unsupported audio data — ignore */ }
+  }
+
+  function ensureAudioCtx(){
+    if(!audioCtx){
+      try{ audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+      catch(e){ audioCtx = null; }
+    }
+    if(audioCtx && audioCtx.state === 'suspended'){
+      audioCtx.resume().catch(function(){ /* resumes on the next user gesture */ });
+    }
+    return audioCtx;
+  }
+
+  function playTick(){
+    var ctx = ensureAudioCtx();
+    if(!ctx) return;
+    var t = ctx.currentTime;
+    var osc = ctx.createOscillator();
+    var gain = ctx.createGain();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(1800, t);
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(0.4, t + 0.002);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.045);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(t);
+    osc.stop(t + 0.06);
+  }
+
+  function thump(ctx, t, freq, peak, dur){
+    var osc = ctx.createOscillator();
+    var gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, t);
+    osc.frequency.exponentialRampToValueAtTime(freq * 0.6, t + dur);
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(peak, t + 0.012);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(t);
+    osc.stop(t + dur + 0.03);
+  }
+
+  function playHeartbeat(){
+    var ctx = ensureAudioCtx();
+    if(!ctx) return;
+    var t = ctx.currentTime;
+    thump(ctx, t, 90, 0.8, 0.14);
+    thump(ctx, t + 0.18, 70, 0.55, 0.16);
+  }
+
+  function chimeTone(ctx, t, freq, dur){
+    var osc = ctx.createOscillator();
+    var gain = ctx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(freq, t);
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(0.35, t + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(t);
+    osc.stop(t + dur + 0.03);
+  }
+  function playMilestone(){
+    var ctx = ensureAudioCtx();
+    if(!ctx) return;
+    var t = ctx.currentTime;
+    chimeTone(ctx, t, 880, 0.3);
+    chimeTone(ctx, t + 0.12, 1318.5, 0.5);
+  }
+
+  var milestoneTimer = null;
+  function showMilestoneToast(n){
+    milestoneText.textContent = 'Круг: ' + n;
+    milestoneToast.classList.add('show');
+    clearTimeout(milestoneTimer);
+    milestoneTimer = setTimeout(function(){ milestoneToast.classList.remove('show'); }, 4200);
+  }
+  milestoneContinue.addEventListener('click', function(){
+    clearTimeout(milestoneTimer);
+    milestoneToast.classList.remove('show');
+  });
+  milestoneReset.addEventListener('click', function(){
+    clearTimeout(milestoneTimer);
+    milestoneToast.classList.remove('show');
+    doReset();
+  });
+
+  function playFeedback(){
+    if(state.soundMode === 'tick') playTick();
+    else if(state.soundMode === 'heartbeat') playHeartbeat();
+    else if(state.soundMode === 'voice') playVoice();
+  }
+
+  function scrollToBottom(){
+    requestAnimationFrame(function(){ counterArea.scrollTop = counterArea.scrollHeight; });
+  }
+
+  function renderEntryDom(n, animate){
+    var prevCurrent = thread.querySelector('.entry.current');
+    if(prevCurrent) prevCurrent.classList.remove('current');
+    var active = getActive();
+    var div = document.createElement('div');
+    div.className = 'entry current';
+    if(!animate) div.style.animation = 'none';
+    var w = document.createElement('span');
+    w.className = 'w';
+    w.textContent = active ? active.label : '';
+    var num = document.createElement('span');
+    num.className = 'n';
+    num.textContent = n;
+    div.appendChild(w);
+    div.appendChild(num);
+    thread.appendChild(div);
+  }
+
+  function renderCounterScreen(){
+    var active = getActive();
+    thread.innerHTML = '';
+    if(!active){
+      emptyState.hidden = false;
+      thread.hidden = true;
+      tapHint.hidden = true;
+      wordPreview.textContent = '—';
+      totalNum.textContent = '0';
+      undoBtn.hidden = true;
+      return;
+    }
+    wordPreview.textContent = active.label;
+    var hasHistory = active.history.length > 0;
+    emptyState.hidden = true;
+    thread.hidden = false;
+    tapHint.hidden = !hasHistory;
+    active.history.forEach(function(n, i){
+      renderEntryDom(n, false);
+    });
+    totalNum.textContent = active.count;
+    undoBtn.hidden = active.history.length === 0;
+    scrollToBottom();
+  }
+
+  function addCount(){
+    var active = getActive();
+    if(!active) return;
+    active.count += 1;
+    active.history.push(active.count);
+    if(active.history.length > MAX_HISTORY){ active.history.shift(); }
+    tapHint.hidden = false;
+    renderEntryDom(active.count, true);
+    totalNum.textContent = active.count;
+    undoBtn.hidden = false;
+    scrollToBottom();
+    logDailyTap(1);
+    saveState();
+    playFeedback();
+    if(!stageOverlay.hidden) triggerStage(active);
+    if(state.target > 0 && active.count % state.target === 0){
+      playMilestone();
+      showMilestoneToast(active.count);
+    }
+    checkDailyNotify();
+  }
+
+  function undoLast(){
+    var active = getActive();
+    if(!active || active.history.length === 0) return;
+    active.history.pop();
+    active.count = Math.max(0, active.count - 1);
+    logDailyTap(-1);
+    renderCounterScreen();
+    saveState();
+  }
+
+  function doReset(){
+    var active = getActive();
+    if(!active) return;
+    stopAuto();
+    active.count = 0;
+    active.history = [];
+    renderCounterScreen();
+    if(!stageOverlay.hidden) renderStageFrame(active, false);
+    saveState();
+  }
+
+  counterArea.addEventListener('click', function(e){
+    if(e.target.closest('button') || e.target.closest('input')) return;
+    addCount();
+  });
+
+  resetBtn.addEventListener('click', function(){
+    if(!resetArmed){
+      resetArmed = true;
+      resetBtn.textContent = 'Точно сбросить?';
+      clearTimeout(resetArmTimeout);
+      resetArmTimeout = setTimeout(function(){
+        resetArmed = false;
+        resetBtn.textContent = 'Сбросить';
+      }, 2800);
+    } else {
+      resetArmed = false;
+      clearTimeout(resetArmTimeout);
+      resetBtn.textContent = 'Сбросить';
+      doReset();
+    }
+  });
+
+  undoBtn.addEventListener('click', function(e){ e.stopPropagation(); undoLast(); });
+
+  /* ---------- list sheet ---------- */
+  function renderList(){
+    plist.innerHTML = '';
+    state.counters.forEach(function(c){
+      var card = document.createElement('div');
+      card.className = 'pcard' + (c.id === state.activeId ? ' active' : '');
+
+      var main = document.createElement('button');
+      main.className = 'pmain';
+      var lbl = document.createElement('span');
+      lbl.className = 'plabel';
+      lbl.textContent = c.label;
+      main.appendChild(lbl);
+      if(c.note){
+        var noteSpan = document.createElement('span');
+        noteSpan.className = 'pnote';
+        noteSpan.textContent = c.note;
+        main.appendChild(noteSpan);
+      }
+      if(c.id === state.activeId){
+        var tag = document.createElement('span');
+        tag.className = 'pactive-tag';
+        tag.textContent = 'выбрано';
+        main.appendChild(tag);
+      }
+      var cnt = document.createElement('span');
+      cnt.className = 'pcount';
+      cnt.textContent = c.count;
+      main.addEventListener('click', function(){
+        state.activeId = c.id;
+        saveState();
+        renderList();
+        renderCounterScreen();
+        listOverlay.hidden = true;
+      });
+
+      var actions = document.createElement('div');
+      actions.className = 'pactions';
+
+      var editBtn = document.createElement('button');
+      editBtn.className = 'pbtn';
+      editBtn.setAttribute('aria-label','Переименовать');
+      editBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"></path></svg>';
+      editBtn.addEventListener('click', function(){ startRename(card, c); });
+
+      var delBtn = document.createElement('button');
+      delBtn.className = 'pbtn';
+      delBtn.setAttribute('aria-label','Удалить');
+      delBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"></path><path d="M10 11v6"></path><path d="M14 11v6"></path></svg>';
+      delBtn.addEventListener('click', function(){ removeCounter(c.id); });
+
+      actions.appendChild(editBtn);
+      actions.appendChild(delBtn);
+
+      card.appendChild(main);
+      card.appendChild(cnt);
+      card.appendChild(actions);
+      plist.appendChild(card);
+    });
+  }
+
+  function startRename(card, c){
+    card.classList.add('rename');
+    card.innerHTML = '';
+    var wrap = document.createElement('div');
+    wrap.style.cssText = 'display:flex; flex-direction:column; gap:6px; flex:1; min-width:0;';
+    var input = document.createElement('input');
+    input.type = 'text';
+    input.value = c.label;
+    input.placeholder = 'Фраза';
+    var noteInput = document.createElement('input');
+    noteInput.type = 'text';
+    noteInput.value = c.note || '';
+    noteInput.placeholder = 'Подпись мелким шрифтом (необязательно)';
+    noteInput.style.cssText = 'font-size:13px; font-family:var(--sans); font-weight:400;';
+    wrap.appendChild(input);
+    wrap.appendChild(noteInput);
+    card.appendChild(wrap);
+    var save = document.createElement('button');
+    save.className = 'pbtn';
+    save.setAttribute('aria-label','Сохранить');
+    save.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+    card.appendChild(save);
+    input.focus();
+    input.select();
+    function commit(){
+      var v = input.value.trim();
+      if(v) c.label = v;
+      c.note = noteInput.value.trim();
+      saveState();
+      renderList();
+      if(c.id === state.activeId) renderCounterScreen();
+    }
+    save.addEventListener('click', commit);
+    input.addEventListener('keydown', function(e){ if(e.key === 'Enter') noteInput.focus(); });
+    noteInput.addEventListener('keydown', function(e){ if(e.key === 'Enter') commit(); });
+  }
+
+  function removeCounter(id){
+    var idx = state.counters.findIndex(function(c){ return c.id === id; });
+    if(idx === -1) return;
+    state.counters.splice(idx, 1);
+    if(state.activeId === id){
+      state.activeId = state.counters[0] ? state.counters[0].id : null;
+    }
+    saveState();
+    renderList();
+    renderCounterScreen();
+  }
+
+  function addCounterPhrase(text){
+    var v = (text || '').trim();
+    if(!v) return;
+    var c = { id: uid(), label: v, note: '', count: 0, history: [] };
+    state.counters.push(c);
+    state.activeId = c.id;
+    saveState();
+    renderList();
+    renderCounterScreen();
+  }
+
+  addBtn.addEventListener('click', function(){
+    addCounterPhrase(addInput.value);
+    addInput.value = '';
+    addInput.focus();
+  });
+  addInput.addEventListener('keydown', function(e){
+    if(e.key === 'Enter'){
+      addCounterPhrase(addInput.value);
+      addInput.value = '';
+    }
+  });
+
+  openList.addEventListener('click', function(){ renderList(); listOverlay.hidden = false; });
+  openStats.addEventListener('click', openStatsView);
+  closeStats.addEventListener('click', function(){ statsOverlay.hidden = true; });
+  dailyToastClose.addEventListener('click', function(){
+    clearTimeout(dailyToastTimer);
+    dailyToast.classList.remove('show');
+  });
+
+  closeList.addEventListener('click', function(){ listOverlay.hidden = true; });
+  listOverlay.addEventListener('click', function(e){ if(e.target === listOverlay) listOverlay.hidden = true; });
+  emptyAddBtn.addEventListener('click', function(){ renderList(); listOverlay.hidden = false; });
+
+  /* ---------- settings sheet ---------- */
+  openSettings.addEventListener('click', function(){ settingsOverlay.hidden = false; });
+  closeSettings.addEventListener('click', function(){ settingsOverlay.hidden = true; });
+  settingsOverlay.addEventListener('click', function(e){ if(e.target === settingsOverlay) settingsOverlay.hidden = true; });
+
+  function setVoiceStatus(msg, kind){
+    voiceStatus.textContent = msg || '';
+    voiceStatus.className = 'status-msg' + (kind ? (' ' + kind) : '');
+  }
+  function refreshVoiceUI(){
+    if(state.audioData){
+      voiceName.textContent = state.audioName || 'запись добавлена';
+      removeVoice.hidden = false;
+    } else {
+      voiceName.textContent = 'запись не добавлена';
+      removeVoice.hidden = true;
+    }
+  }
+
+  voiceInput.addEventListener('change', function(){
+    var file = voiceInput.files && voiceInput.files[0];
+    voiceInput.value = '';
+    if(!file) return;
+    if(file.size > MAX_AUDIO_BYTES){
+      setVoiceStatus('Файл слишком большой (максимум 3 МБ)', 'err');
+      return;
+    }
+    var reader = new FileReader();
+    reader.onload = function(){
+      state.audioData = reader.result;
+      state.audioName = file.name;
+      refreshVoiceUI();
+      setVoiceStatus('Запись добавлена', 'ok');
+      saveState();
+    };
+    reader.onerror = function(){ setVoiceStatus('Не удалось прочитать файл', 'err'); };
+    reader.readAsDataURL(file);
+  });
+
+  removeVoice.addEventListener('click', function(){
+    state.audioData = null;
+    state.audioName = '';
+    if(state.soundMode === 'voice') state.soundMode = 'none';
+    refreshVoiceUI();
+    refreshSoundSeg();
+    setVoiceStatus('Запись удалена', '');
+    saveState();
+  });
+
+  function refreshSoundSeg(){
+    var btns = soundSeg.querySelectorAll('button');
+    for(var i=0;i<btns.length;i++){
+      btns[i].classList.toggle('active', btns[i].getAttribute('data-mode') === state.soundMode);
+    }
+  }
+  soundSeg.addEventListener('click', function(e){
+    var btn = e.target.closest('button');
+    if(!btn) return;
+    var mode = btn.getAttribute('data-mode');
+    state.soundMode = mode;
+    refreshSoundSeg();
+    saveState();
+    if(mode === 'voice' && !state.audioData){
+      setVoiceStatus('Загрузите запись ниже, чтобы услышать голос', 'err');
+    } else if(mode === 'voice'){
+      playVoice();
+    } else if(mode === 'tick'){
+      playTick();
+    } else if(mode === 'heartbeat'){
+      playHeartbeat();
+    }
+  });
+
+  targetInput.addEventListener('input', function(){
+    var v = parseInt(targetInput.value, 10);
+    state.target = (isNaN(v) || v < 0) ? 0 : v;
+    saveState();
+  });
+
+  secRange.addEventListener('input', function(){
+    state.autoSec = parseInt(secRange.value, 10);
+    secValue.textContent = state.autoSec + ' сек';
+    saveState();
+    if(autoRunning) scheduleAutoNext();
+  });
+
+  function scheduleAutoNext(){
+    autoNextTick = Date.now() + (state.autoSec || 3) * 1000;
+  }
+  function autoPoll(){
+    if(!autoRunning) return;
+    if(Date.now() >= autoNextTick){
+      addCount();
+      scheduleAutoNext();
+    }
+  }
+  function updateFabUI(running){
+    fabIcon.innerHTML = running ? ICON_STOP : ICON_PLAY;
+    fabLabel.textContent = running ? 'Стоп' : 'Авто';
+    fabAuto.classList.toggle('running', running);
+    fabAuto.setAttribute('aria-label', running ? 'Остановить автосчёт' : 'Запустить автосчёт');
+  }
+  function startAuto(){
+    if(autoRunning) return;
+    if(!getActive()) return;
+    autoRunning = true;
+    scheduleAutoNext();
+    autoPollId = setInterval(autoPoll, 250);
+    autoToggle.textContent = 'Остановить';
+    autoToggle.classList.add('running');
+    updateFabUI(true);
+  }
+  function stopAuto(){
+    autoRunning = false;
+    if(autoPollId){ clearInterval(autoPollId); autoPollId = null; }
+    autoToggle.textContent = 'Запустить';
+    autoToggle.classList.remove('running');
+    updateFabUI(false);
+  }
+  autoToggle.addEventListener('click', function(){ if(autoRunning) stopAuto(); else startAuto(); });
+  fabAuto.addEventListener('click', function(){ if(autoRunning) stopAuto(); else startAuto(); });
+
+  document.addEventListener('visibilitychange', function(){
+    if(document.visibilityState === 'visible' && autoRunning){
+      /* returning from background: resume cleanly instead of bursting missed ticks */
+      if(Date.now() > autoNextTick) scheduleAutoNext();
+      var ctx = audioCtx;
+      if(ctx && ctx.state === 'suspended'){ ctx.resume().catch(function(){}); }
+    }
+    if(document.visibilityState === 'hidden' && voiceListening){
+      stopVoiceListening();
+      setVoiceStatus('Микрофон выключен — нажмите «Слушать» снова', '');
+    }
+  });
+
+  /* ---------- animation stage ---------- */
+  function heartFillLevel(count){
+    var t = state.target > 0 ? state.target : 100;
+    var reverse = (state.animStyle === 'heart-fill' || state.animStyle === 'word' || state.animStyle === 'house');
+    if(count <= 0) return reverse ? 0 : 1;
+    var p = ((count - 1) % t) + 1;
+    return reverse ? (p / t) : (1 - p / t);
+  }
+  function setWordFill(fill){
+    var opacity = Math.max(0, Math.min(1, fill));
+    wordFillClip.style.setProperty('--word-fill-opacity', opacity.toFixed(3));
+  }
+  function renderWordFrame(active, animate){
+    var text = (state.customWord && state.customWord.trim()) ? state.customWord.trim() : active.label;
+    wordPhraseLabel.textContent = active.label;
+    wordBase.textContent = text;
+    wordFillText.textContent = text;
+    setWordFill(heartFillLevel(active.count));
+    wordNum.textContent = active.count;
+    if(animate){
+      wordWrap.classList.remove('flash');
+      void wordWrap.offsetWidth;
+      wordWrap.classList.add('flash');
+      wordFillClip.classList.remove('flash');
+      void wordFillClip.offsetWidth;
+      wordFillClip.classList.add('flash');
+    }
+  }
+  function setHeartFill(fill){
+    var emptyPct = Math.max(0, Math.min(100, (1 - fill) * 100));
+    heartLiquid.style.setProperty('--heart-empty', emptyPct.toFixed(2) + '%');
+  }
+
+  var TREE_SVG = '<svg viewBox="0 0 24 28" aria-hidden="true">' +
+    '<rect x="10" y="17" width="4" height="9" rx="1.5" fill="var(--accent-dim)"></rect>' +
+    '<circle cx="12" cy="10" r="9" fill="var(--accent)"></circle>' +
+    '<ellipse cx="9" cy="7" rx="3" ry="2" fill="rgba(255,255,255,.35)"></ellipse>' +
+    '</svg>';
+
+  function renderForestFrame(active, animate){
+    var tRaw = state.target > 0 ? state.target : 100;
+    var t = Math.min(Math.max(tRaw, 1), 300);
+    var p = active.count <= 0 ? 0 : (((active.count - 1) % t) + 1);
+    var cols = Math.max(1, Math.ceil(Math.sqrt(t)));
+    forestGrid.style.setProperty('--forest-cols', cols);
+    forestGrid.innerHTML = '';
+    var frag = document.createDocumentFragment();
+    for(var i = 1; i <= t; i++){
+      var slot = document.createElement('div');
+      slot.className = 'forest-slot' + (i <= p ? ' planted' : '') + (i === p && animate ? ' grow' : '');
+      if(i <= p) slot.innerHTML = TREE_SVG;
+      frag.appendChild(slot);
+    }
+    forestGrid.appendChild(frag);
+    forestWord.textContent = active.label;
+    forestNum.textContent = active.count;
+    forestCaption.textContent = 'Посажено: ' + p + ' из ' + t;
+    if(p > 0){
+      requestAnimationFrame(function(){
+        forestGrid.scrollTop = forestGrid.scrollHeight;
+      });
+    }
+  }
+
+  function fillChip(chip, number, labelText){
+    var hasLabel = !!(labelText && labelText.trim());
+    chip.classList.toggle('has-label', hasLabel);
+    chip.innerHTML = '';
+    var numEl = document.createElement('div');
+    numEl.className = 'chip-num';
+    numEl.textContent = number;
+    chip.appendChild(numEl);
+    if(hasLabel){
+      var labelEl = document.createElement('div');
+      labelEl.className = 'chip-label';
+      labelEl.textContent = labelText.trim();
+      chip.appendChild(labelEl);
+    }
+  }
+
+  function renderBeadsFrame(active, animate){
+    var tRaw = state.target > 0 ? state.target : 100;
+    var t = Math.min(Math.max(tRaw, 1), 300);
+    var p = active.count <= 0 ? 0 : (((active.count - 1) % t) + 1);
+    beadsRow.innerHTML = '';
+    var frag = document.createDocumentFragment();
+    for(var i = 1; i <= p; i++){
+      var chip = document.createElement('div');
+      chip.className = 'bead-chip' + (i === p && animate ? ' fall' : '');
+      fillChip(chip, i, state.chipLabel);
+      frag.appendChild(chip);
+    }
+    beadsRow.appendChild(frag);
+    beadsWord.textContent = active.label;
+    beadsNum.textContent = active.count;
+    beadsCaption.textContent = p + ' / ' + t;
+    if(p > 0){
+      requestAnimationFrame(function(){
+        beadsRow.scrollTop = beadsRow.scrollHeight;
+      });
+    }
+  }
+
+  function renderBricksFrame(active, animate){
+    var tRaw = state.target > 0 ? state.target : 100;
+    var t = Math.min(Math.max(tRaw, 1), 600);
+    var p = active.count <= 0 ? 0 : (((active.count - 1) % t) + 1);
+    bricksRow.innerHTML = '';
+    var frag = document.createDocumentFragment();
+    for(var i = 1; i <= p; i++){
+      var chip = document.createElement('div');
+      chip.className = 'brick-chip' + (i === p && animate ? ' fall' : '');
+      fillChip(chip, i, state.chipLabel);
+      frag.appendChild(chip);
+    }
+    bricksRow.appendChild(frag);
+    bricksWord.textContent = active.label;
+    bricksNum.textContent = active.count;
+    bricksCaption.textContent = p + ' / ' + t;
+    if(p > 0){
+      requestAnimationFrame(function(){
+        bricksRow.scrollTop = bricksRow.scrollHeight;
+      });
+    }
+  }
+
+  function renderMarqueeFrame(active){
+    var text = (state.marqueeText && state.marqueeText.trim()) ? state.marqueeText.trim() : active.label;
+    marqueeText1.textContent = text;
+    marqueeText2.textContent = text;
+    marqueeTrack.style.setProperty('--marquee-duration', (state.marqueeSpeed || 12) + 's');
+    marqueeStage.classList.remove('blink-slow','blink-fast','blink-pulse','blink-strobe');
+    if(state.marqueeBlinkMode && state.marqueeBlinkMode !== 'none'){
+      marqueeStage.classList.add('blink-' + state.marqueeBlinkMode);
+      marqueeTrack.style.setProperty('--marquee-blink-duration', (state.marqueeBlinkSpeed || 1.2) + 's');
+    }
+    marqueeNum.textContent = active.count;
+  }
+
+  function renderTextWallFrame(active, animate){
+    var tRaw = state.target > 0 ? state.target : 100;
+    var t = Math.min(Math.max(tRaw, 1), 600);
+    var p = active.count <= 0 ? 0 : (((active.count - 1) % t) + 1);
+    var text = active.label;
+    textWallWrap.innerHTML = '';
+    var frag = document.createDocumentFragment();
+    for(var i = 1; i <= p; i++){
+      var chip = document.createElement('div');
+      chip.className = 'text-wall-chip' + (i === p && animate ? ' fall' : '');
+      chip.textContent = text;
+      frag.appendChild(chip);
+    }
+    textWallWrap.appendChild(frag);
+    textWallWord.textContent = active.label;
+    textWallNum.textContent = active.count;
+    textWallCaption.textContent = p + ' / ' + t;
+    if(p > 0){
+      requestAnimationFrame(function(){
+        textWallWrap.scrollTop = textWallWrap.scrollHeight;
+      });
+    }
+  }
+
+  function renderThreadBeadsFrame(active, animate){
+    var t = 100;
+    var p = active.count <= 0 ? 0 : (((active.count - 1) % t) + 1);
+    threadBeadsRow.innerHTML = '';
+    var frag = document.createDocumentFragment();
+    for(var i = 1; i <= p; i++){
+      var b = document.createElement('div');
+      b.className = 'tb-bead lit' + (i === p ? ' current' : '') + (i === p && animate ? ' fall' : '');
+      b.textContent = i;
+      frag.appendChild(b);
+    }
+    threadBeadsRow.appendChild(frag);
+    threadBeadsWord.textContent = active.label;
+    threadBeadsNum.textContent = active.count;
+    threadBeadsCaption.textContent = p + ' / ' + t;
+    if(p > 0){
+      requestAnimationFrame(function(){
+        var last = threadBeadsRow.lastElementChild;
+        if(last && last.scrollIntoView) last.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+      });
+    }
+  }
+
+  var MOSAIC_HEART_D = 'M16 28.5C16 28.5 1.5 19 1.5 9.8C1.5 4.6 5.6 1.5 9.8 1.5C13 1.5 15.2 3.6 16 6.8C16.8 3.6 19 1.5 22.2 1.5C26.4 1.5 30.5 4.6 30.5 9.8C30.5 19 16 28.5 16 28.5Z';
+  var mosaicPath2D = (typeof Path2D !== 'undefined') ? new Path2D(MOSAIC_HEART_D) : null;
+  var mosaicProbeCtx = (function(){
+    try{ return document.createElement('canvas').getContext('2d'); }
+    catch(e){ return null; }
+  })();
+  function isInsideMosaicHeart(x, y){
+    if(!mosaicPath2D || !mosaicProbeCtx) return true;
+    try{ return mosaicProbeCtx.isPointInPath(mosaicPath2D, x, y); }
+    catch(e){ return true; }
+  }
+  function mulberry32(seed){
+    return function(){
+      seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+      var tt = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+      tt = (tt + Math.imul(tt ^ (tt >>> 7), 61 | tt)) ^ tt;
+      return ((tt ^ (tt >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  var mosaicCache = null;
+  function buildMosaicLayout(cols, rows){
+    var key = cols + 'x' + rows;
+    if(mosaicCache && mosaicCache.key === key) return mosaicCache;
+    var cells = [];
+    for(var r = 0; r < rows; r++){
+      for(var c = 0; c < cols; c++){
+        var cx = (c + 0.5) / cols * 32;
+        var cy = (r + 0.5) / rows * 29;
+        if(isInsideMosaicHeart(cx, cy)) cells.push({ r: r, c: c });
+      }
+    }
+    var rnd = mulberry32(cols * 1000 + rows);
+    for(var i = cells.length - 1; i > 0; i--){
+      var j = Math.floor(rnd() * (i + 1));
+      var tmp = cells[i]; cells[i] = cells[j]; cells[j] = tmp;
+    }
+    mosaicCache = { key: key, cols: cols, rows: rows, cells: cells };
+    return mosaicCache;
+  }
+  function renderMosaicFrame(active, animate){
+    var tRaw = state.target > 0 ? state.target : 100;
+    var density = Math.min(Math.max(tRaw, 1), 100);
+    var cols = Math.max(7, Math.min(16, Math.round(Math.sqrt(density * 32 / 29 / 0.6))));
+    var rows = Math.max(7, Math.round(cols * 29 / 32));
+    var layout = buildMosaicLayout(cols, rows);
+    var t = layout.cells.length || 1;
+    var p = active.count <= 0 ? 0 : (((active.count - 1) % t) + 1);
+    if(heartMosaicGrid.dataset.layoutKey !== layout.key){
+      heartMosaicGrid.dataset.layoutKey = layout.key;
+      heartMosaicGrid.style.setProperty('--mosaic-cols', cols);
+      heartMosaicGrid.style.setProperty('--mosaic-rows', rows);
+      heartMosaicGrid.innerHTML = '';
+      var frag = document.createDocumentFragment();
+      layout.cells.forEach(function(cell){
+        var el = document.createElement('div');
+        el.className = 'mosaic-cell';
+        el.style.gridRowStart = cell.r + 1;
+        el.style.gridColumnStart = cell.c + 1;
+        frag.appendChild(el);
+      });
+      heartMosaicGrid.appendChild(frag);
+    }
+    var text = (state.mosaicText && state.mosaicText.trim()) ? state.mosaicText.trim() : active.label;
+    var kids = heartMosaicGrid.children;
+    for(var i = 0; i < kids.length; i++){
+      var lit = i < p;
+      kids[i].classList.toggle('lit', lit);
+      kids[i].textContent = lit ? text : '';
+    }
+    if(animate && p > 0){
+      var last = kids[p - 1];
+      if(last){
+        last.classList.remove('twinkle');
+        void last.offsetWidth;
+        last.classList.add('twinkle');
+      }
+      heartMosaicWrap.classList.remove('flash');
+      void heartMosaicWrap.offsetWidth;
+      heartMosaicWrap.classList.add('flash');
+    }
+    heartMosaicWord.textContent = active.label;
+    heartMosaicNum.textContent = active.count;
+    heartMosaicCaption.textContent = p + ' / ' + t;
+  }
+
+  function setHouseFill(fill){
+    var emptyPct = Math.max(0, Math.min(100, (1 - fill) * 100));
+    houseFillWrap.style.setProperty('--house-empty', emptyPct.toFixed(2) + '%');
+  }
+  function spawnBrickFx(wrapEl, number){
+    var fx = document.createElement('div');
+    fx.className = 'house-brick-fx';
+    fx.textContent = number;
+    wrapEl.appendChild(fx);
+    fx.addEventListener('animationend', function(){
+      if(fx.parentNode) fx.parentNode.removeChild(fx);
+    });
+    setTimeout(function(){
+      if(fx.parentNode) fx.parentNode.removeChild(fx);
+    }, 700);
+  }
+  function renderHouseFrame(active, animate){
+    houseWord.textContent = active.label;
+    houseNum.textContent = active.count;
+    setHouseFill(heartFillLevel(active.count));
+    if(animate){
+      houseWrap.classList.remove('flash');
+      void houseWrap.offsetWidth;
+      houseWrap.classList.add('flash');
+      houseFillWrap.classList.remove('flash');
+      void houseFillWrap.offsetWidth;
+      houseFillWrap.classList.add('flash');
+      spawnBrickFx(houseWrap, active.count);
+    }
+  }
+
+  function renderStageFrame(active, animate){
+    var mode = (state.animStyle === 'heart' || state.animStyle === 'heart-fill') ? 'heart'
+      : (state.animStyle === 'forest' ? 'forest'
+      : (state.animStyle === 'word' ? 'word'
+      : (state.animStyle === 'beads' ? 'beads'
+      : (state.animStyle === 'bricks' ? 'bricks'
+      : (state.animStyle === 'house' ? 'house'
+      : (state.animStyle === 'heart-mosaic' ? 'heart-mosaic'
+      : (state.animStyle === 'thread-beads' ? 'thread-beads'
+      : (state.animStyle === 'text-wall' ? 'text-wall'
+      : (state.animStyle === 'marquee' ? 'marquee' : 'text')))))))));
+    stageContent.hidden = mode !== 'text';
+    heartStage.hidden = mode !== 'heart';
+    forestStage.hidden = mode !== 'forest';
+    wordStage.hidden = mode !== 'word';
+    beadsStage.hidden = mode !== 'beads';
+    bricksStage.hidden = mode !== 'bricks';
+    houseStage.hidden = mode !== 'house';
+    heartMosaicStage.hidden = mode !== 'heart-mosaic';
+    threadBeadsStage.hidden = mode !== 'thread-beads';
+    textWallStage.hidden = mode !== 'text-wall';
+    marqueeStage.hidden = mode !== 'marquee';
+    if(mode === 'heart'){
+      heartWord.textContent = active.label;
+      heartNum.textContent = active.count;
+      setHeartFill(heartFillLevel(active.count));
+      if(animate){
+        heartWrap.classList.remove('flash');
+        void heartWrap.offsetWidth;
+        heartWrap.classList.add('flash');
+        heartOutline.classList.remove('flash');
+        void heartOutline.offsetWidth;
+        heartOutline.classList.add('flash');
+      }
+    } else if(mode === 'forest'){
+      renderForestFrame(active, animate);
+    } else if(mode === 'word'){
+      renderWordFrame(active, animate);
+    } else if(mode === 'beads'){
+      renderBeadsFrame(active, animate);
+    } else if(mode === 'bricks'){
+      renderBricksFrame(active, animate);
+    } else if(mode === 'house'){
+      renderHouseFrame(active, animate);
+    } else if(mode === 'heart-mosaic'){
+      renderMosaicFrame(active, animate);
+    } else if(mode === 'thread-beads'){
+      renderThreadBeadsFrame(active, animate);
+    } else if(mode === 'text-wall'){
+      renderTextWallFrame(active, animate);
+    } else if(mode === 'marquee'){
+      renderMarqueeFrame(active);
+    } else {
+      stageWord.textContent = active.label;
+      stageNum.textContent = active.count;
+      if(animate){
+        stageContent.classList.remove('anim-pop','anim-slide','anim-flip','anim-pulse','anim-blur');
+        void stageContent.offsetWidth;
+        stageContent.classList.add('anim-' + (state.animStyle || 'pulse'));
+      }
+    }
+  }
+
+  function triggerStage(active){
+    renderStageFrame(active, true);
+  }
+
+  function openStageView(){
+    var active = getActive();
+    if(!active) return;
+    stopVoiceListening();
+    voiceOverlay.hidden = true;
+    renderStageFrame(active, false);
+    stageOverlay.hidden = false;
+    settingsOverlay.hidden = true;
+  }
+
+  /* ---------- voice-activated counting ---------- */
+  var voiceStream = null;
+  var voiceAudioCtx = null;
+  var voiceAnalyser = null;
+  var voiceDataArray = null;
+  var voiceFreqArray = null;
+  var voiceRafId = null;
+  var voiceListening = false;
+  var voiceSpeaking = false;
+  var voiceLastTrigger = 0;
+  var voiceAboveSince = 0;
+  var voiceCalibrating = false;
+  var voiceCalibStart = 0;
+  var voiceCalibSamples = [];
+  var voiceBaseline = 0.015;
+  var VOICE_CALIBRATION_MS = 700;
+  var VOICE_MIN_SUSTAIN_MS = 110;
+  var voiceRecognition = null;
+
+  function setVoiceStatus(msg, kind){
+    voiceListenStatus.textContent = msg || '';
+    voiceListenStatus.className = 'voice-status' + (kind ? (' ' + kind) : '');
+  }
+
+  function sensitivityToThreshold(sens){
+    var s = sens || 6;
+    var t = 10 - s; /* 0 (most sensitive) .. 9 (least sensitive) */
+    return 0.012 + (t / 9) * 0.09;
+  }
+
+  function computeRms(data){
+    var sum = 0;
+    for(var i = 0; i < data.length; i++){
+      var v = (data[i] - 128) / 128;
+      sum += v * v;
+    }
+    return Math.sqrt(sum / data.length);
+  }
+
+  function registerVoiceCount(){
+    addCount();
+    var active = getActive();
+    if(!active) return;
+    voiceWord.textContent = active.label;
+    voiceNum.textContent = active.count;
+    voiceContent.classList.remove('anim-pop');
+    void voiceContent.offsetWidth;
+    voiceContent.classList.add('anim-pop');
+  }
+
+  function isVoiceLike(freqData, sampleRate){
+    var binHz = (sampleRate / 2) / freqData.length;
+    var loBin = Math.max(0, Math.floor(250 / binHz));
+    var hiBin = Math.min(freqData.length - 1, Math.ceil(3500 / binHz));
+    var total = 0, band = 0;
+    for(var i = 0; i < freqData.length; i++){
+      var v = freqData[i];
+      total += v;
+      if(i >= loBin && i <= hiBin) band += v;
+    }
+    if(total <= 0) return false;
+    return (band / total) > 0.4;
+  }
+
+  function voiceLoop(){
+    if(!voiceListening) return;
+    voiceAnalyser.getByteTimeDomainData(voiceDataArray);
+    var rms = computeRms(voiceDataArray);
+    var level = Math.min(1, rms * 4);
+    voiceMeterFill.style.width = (level * 100).toFixed(0) + '%';
+    var now = Date.now();
+
+    if(voiceCalibrating){
+      voiceCalibSamples.push(rms);
+      if(now - voiceCalibStart >= VOICE_CALIBRATION_MS){
+        voiceCalibrating = false;
+        var sorted = voiceCalibSamples.slice().sort(function(a, b){ return a - b; });
+        var idx = Math.floor(sorted.length * 0.6);
+        voiceBaseline = sorted[idx] || 0.012;
+        setVoiceStatus('Слушаю — говорите фразу', 'ok');
+      }
+      voiceRafId = requestAnimationFrame(voiceLoop);
+      return;
+    }
+
+    var onThresh = Math.max(sensitivityToThreshold(state.voiceSensitivity), voiceBaseline * 2.4 + 0.008);
+    var offThresh = onThresh * 0.55;
+
+    if(rms > onThresh){
+      if(!voiceAboveSince) voiceAboveSince = now;
+    } else {
+      voiceAboveSince = 0;
+      if(voiceSpeaking && rms < offThresh) voiceSpeaking = false;
+    }
+
+    if(!voiceSpeaking && voiceAboveSince && (now - voiceAboveSince) >= VOICE_MIN_SUSTAIN_MS && (now - voiceLastTrigger) > 450){
+      voiceAnalyser.getByteFrequencyData(voiceFreqArray);
+      if(isVoiceLike(voiceFreqArray, voiceAudioCtx.sampleRate)){
+        voiceSpeaking = true;
+        voiceLastTrigger = now;
+        registerVoiceCount();
+      }
+    }
+    voiceRafId = requestAnimationFrame(voiceLoop);
+  }
+
+  function stopVolumeMode(){
+    if(voiceRafId){ cancelAnimationFrame(voiceRafId); voiceRafId = null; }
+    if(voiceStream){
+      voiceStream.getTracks().forEach(function(t){ t.stop(); });
+      voiceStream = null;
+    }
+    if(voiceAudioCtx){
+      voiceAudioCtx.close().catch(function(){});
+      voiceAudioCtx = null;
+    }
+    voiceAnalyser = null;
+    voiceCalibrating = false;
+    voiceAboveSince = 0;
+  }
+
+  function startVolumeMode(){
+    if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+      setVoiceStatus('Микрофон не поддерживается в этом браузере', 'err');
+      return;
+    }
+    setVoiceStatus('Запрашиваю доступ к микрофону…', '');
+    navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } })
+      .then(function(stream){
+        voiceStream = stream;
+        var Ctx = window.AudioContext || window.webkitAudioContext;
+        voiceAudioCtx = new Ctx();
+        var source = voiceAudioCtx.createMediaStreamSource(stream);
+        voiceAnalyser = voiceAudioCtx.createAnalyser();
+        voiceAnalyser.fftSize = 1024;
+        voiceDataArray = new Uint8Array(voiceAnalyser.fftSize);
+        voiceFreqArray = new Uint8Array(voiceAnalyser.frequencyBinCount);
+        source.connect(voiceAnalyser);
+        voiceListening = true;
+        voiceSpeaking = false;
+        voiceLastTrigger = 0;
+        voiceAboveSince = 0;
+        voiceCalibrating = true;
+        voiceCalibStart = Date.now();
+        voiceCalibSamples = [];
+        voiceListenBtn.textContent = 'Остановить';
+        voiceListenBtn.classList.add('running');
+        setVoiceStatus('Тихо — идёт калибровка фонового шума…', '');
+        voiceRafId = requestAnimationFrame(voiceLoop);
+      })
+      .catch(function(err){
+        var msg = 'Не удалось включить микрофон';
+        if(err && err.name === 'NotAllowedError') msg = 'Доступ к микрофону запрещён — разрешите его в настройках браузера';
+        else if(err && err.name === 'NotFoundError') msg = 'Микрофон не найден на этом устройстве';
+        setVoiceStatus(msg, 'err');
+      });
+  }
+
+  function normalizeSpeechText(s){
+    return (s || '').toLowerCase().replace(/[^a-zа-яё0-9\s]/gi, ' ').replace(/\s+/g, ' ').trim();
+  }
+
+  function checkTranscriptMatch(transcript){
+    var active = getActive();
+    if(!active) return;
+    var target = normalizeSpeechText(active.label);
+    var heard = normalizeSpeechText(transcript);
+    if(!target || !heard) return;
+    var targetWords = target.split(' ').filter(function(w){ return w.length > 1; });
+    if(!targetWords.length) return;
+    var heardWords = heard.split(' ');
+    var matchCount = 0;
+    targetWords.forEach(function(tw){
+      if(heardWords.some(function(hw){ return hw === tw || hw.indexOf(tw) === 0 || tw.indexOf(hw) === 0; })) matchCount++;
+    });
+    var ratio = matchCount / targetWords.length;
+    var now = Date.now();
+    if(ratio >= 0.5 && (now - voiceLastTrigger) > 600){
+      voiceLastTrigger = now;
+      registerVoiceCount();
+    }
+  }
+
+  function stopSpeechMode(){
+    if(voiceRecognition){
+      voiceRecognition.onend = null;
+      voiceRecognition.onerror = null;
+      voiceRecognition.onresult = null;
+      try{ voiceRecognition.stop(); }catch(e){}
+      voiceRecognition = null;
+    }
+  }
+
+  function startSpeechMode(){
+    var SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if(!SR){
+      setVoiceStatus('Точное распознавание речи не поддерживается в этом браузере', 'err');
+      return;
+    }
+    try{
+      voiceRecognition = new SR();
+      voiceRecognition.lang = 'ru-RU';
+      voiceRecognition.continuous = true;
+      voiceRecognition.interimResults = false;
+      voiceRecognition.maxAlternatives = 1;
+      voiceRecognition.onresult = function(e){
+        for(var i = e.resultIndex; i < e.results.length; i++){
+          if(e.results[i].isFinal){
+            checkTranscriptMatch(e.results[i][0].transcript);
+          }
+        }
+      };
+      voiceRecognition.onerror = function(e){
+        if(e.error === 'not-allowed' || e.error === 'service-not-allowed'){
+          setVoiceStatus('Доступ к микрофону запрещён — разрешите его в настройках браузера', 'err');
+          stopVoiceListening();
+        } else if(e.error === 'network'){
+          setVoiceStatus('Нет соединения с интернетом — для точного режима оно нужно', 'err');
+        }
+      };
+      voiceRecognition.onend = function(){
+        if(voiceListening && state.voiceMode === 'speech'){
+          try{ voiceRecognition.start(); }catch(e){}
+        }
+      };
+      voiceRecognition.start();
+      voiceListening = true;
+      voiceListenBtn.textContent = 'Остановить';
+      voiceListenBtn.classList.add('running');
+      setVoiceStatus('Слушаю — произносите фразу (нужен интернет)', 'ok');
+    }catch(err){
+      setVoiceStatus('Не удалось запустить распознавание речи', 'err');
+    }
+  }
+
+  function stopVoiceListening(){
+    voiceListening = false;
+    stopVolumeMode();
+    stopSpeechMode();
+    voiceListenBtn.textContent = 'Слушать';
+    voiceListenBtn.classList.remove('running');
+    voiceMeterFill.style.width = '0%';
+  }
+
+  function startVoiceListening(){
+    if(voiceListening) return;
+    if(state.voiceMode === 'speech') startSpeechMode(); else startVolumeMode();
+  }
+
+  function refreshVoiceModeUI(){
+    var btns = voiceModeSeg.querySelectorAll('button');
+    for(var i = 0; i < btns.length; i++){
+      btns[i].classList.toggle('active', btns[i].getAttribute('data-mode') === state.voiceMode);
+    }
+    var isSpeech = state.voiceMode === 'speech';
+    voiceMeterWrap.hidden = isSpeech;
+    voiceSensField.hidden = isSpeech;
+  }
+
+  voiceModeSeg.addEventListener('click', function(e){
+    var btn = e.target.closest('button');
+    if(!btn) return;
+    var mode = btn.getAttribute('data-mode');
+    if(mode === state.voiceMode) return;
+    var wasListening = voiceListening;
+    stopVoiceListening();
+    state.voiceMode = mode;
+    saveState();
+    refreshVoiceModeUI();
+    setVoiceStatus(mode === 'speech' ? 'Нажмите «Слушать» — для этого режима нужен интернет' : 'Нажмите «Слушать», чтобы включить микрофон', '');
+    if(wasListening) startVoiceListening();
+  });
+
+  function openVoiceView(){
+    var active = getActive();
+    if(!active) return;
+    stageOverlay.hidden = true;
+    voiceWord.textContent = active.label;
+    voiceNum.textContent = active.count;
+    voiceMeterFill.style.width = '0%';
+    refreshVoiceModeUI();
+    setVoiceStatus(state.voiceMode === 'speech' ? 'Нажмите «Слушать» — для этого режима нужен интернет' : 'Нажмите «Слушать», чтобы включить микрофон', '');
+    voiceOverlay.hidden = false;
+    settingsOverlay.hidden = true;
+  }
+
+  openVoice.addEventListener('click', openVoiceView);
+  closeVoice.addEventListener('click', function(){
+    stopVoiceListening();
+    voiceOverlay.hidden = true;
+  });
+  voiceListenBtn.addEventListener('click', function(){
+    if(voiceListening) stopVoiceListening(); else startVoiceListening();
+  });
+  voiceSensRange.addEventListener('input', function(){
+    state.voiceSensitivity = parseInt(voiceSensRange.value, 10);
+    voiceSensValue.textContent = state.voiceSensitivity;
+    saveState();
+  });
+
+  customWordInput.addEventListener('input', function(){
+    state.customWord = customWordInput.value;
+    saveState();
+    var active = getActive();
+    if(active && !stageOverlay.hidden && state.animStyle === 'word'){
+      renderWordFrame(active, false);
+    }
+  });
+
+  chipLabelInput.addEventListener('input', function(){
+    state.chipLabel = chipLabelInput.value;
+    saveState();
+    var active = getActive();
+    if(active && !stageOverlay.hidden){
+      if(state.animStyle === 'beads') renderBeadsFrame(active, false);
+      else if(state.animStyle === 'bricks') renderBricksFrame(active, false);
+    }
+  });
+
+  mosaicTextInput.addEventListener('input', function(){
+    state.mosaicText = mosaicTextInput.value;
+    saveState();
+    var active = getActive();
+    if(active && !stageOverlay.hidden && state.animStyle === 'heart-mosaic'){
+      renderMosaicFrame(active, false);
+    }
+  });
+
+  marqueeTextInput.addEventListener('input', function(){
+    state.marqueeText = marqueeTextInput.value;
+    saveState();
+    var active = getActive();
+    if(active && !stageOverlay.hidden && state.animStyle === 'marquee'){
+      renderMarqueeFrame(active);
+    }
+  });
+  marqueeSpeedRange.addEventListener('input', function(){
+    state.marqueeSpeed = parseInt(marqueeSpeedRange.value, 10);
+    marqueeSpeedValue.textContent = state.marqueeSpeed + ' сек';
+    saveState();
+    var active = getActive();
+    if(active && !stageOverlay.hidden && state.animStyle === 'marquee'){
+      renderMarqueeFrame(active);
+    }
+  });
+  marqueeBlinkSpeedRange.addEventListener('input', function(){
+    state.marqueeBlinkSpeed = parseFloat(marqueeBlinkSpeedRange.value);
+    marqueeBlinkSpeedValue.textContent = state.marqueeBlinkSpeed.toFixed(1) + ' сек';
+    saveState();
+    var active = getActive();
+    if(active && !stageOverlay.hidden && state.animStyle === 'marquee'){
+      renderMarqueeFrame(active);
+    }
+  });
+  function refreshMarqueeBlinkSeg(){
+    var btns = marqueeBlinkSeg.querySelectorAll('button');
+    for(var i=0;i<btns.length;i++){
+      btns[i].classList.toggle('active', btns[i].getAttribute('data-blink') === (state.marqueeBlinkMode || 'none'));
+    }
+  }
+  marqueeBlinkSeg.addEventListener('click', function(e){
+    var btn = e.target.closest('button');
+    if(!btn) return;
+    state.marqueeBlinkMode = btn.getAttribute('data-blink');
+    refreshMarqueeBlinkSeg();
+    saveState();
+    var active = getActive();
+    if(active && !stageOverlay.hidden && state.animStyle === 'marquee'){
+      renderMarqueeFrame(active);
+    }
+  });
+
+  openStage.addEventListener('click', openStageView);
+  stageOpenFromSettings.addEventListener('click', openStageView);
+  closeStage.addEventListener('click', function(){ stageOverlay.hidden = true; });
+  stageMid.addEventListener('click', function(e){
+    if(e.target.closest('button')) return;
+    addCount();
+  });
+
+  function refreshAnimSeg(){
+    var btns = animSeg.querySelectorAll('button');
+    for(var i=0;i<btns.length;i++){
+      btns[i].classList.toggle('active', btns[i].getAttribute('data-anim') === state.animStyle);
+    }
+  }
+  animSeg.addEventListener('click', function(e){
+    var btn = e.target.closest('button');
+    if(!btn) return;
+    state.animStyle = btn.getAttribute('data-anim');
+    refreshAnimSeg();
+    saveState();
+    var active = getActive();
+    if(active && !stageOverlay.hidden){
+      renderStageFrame(active, true);
+    }
+  });
+
+  /* ---------- fullscreen ---------- */
+  var fsIconExpand = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H5a2 2 0 0 0-2 2v3"></path><path d="M21 8V5a2 2 0 0 0-2-2h-3"></path><path d="M3 16v3a2 2 0 0 0 2 2h3"></path><path d="M16 21h3a2 2 0 0 0 2-2v-3"></path></svg>';
+  var fsIconShrink = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3v4a2 2 0 0 1-2 2H3"></path><path d="M21 9h-4a2 2 0 0 1-2-2V3"></path><path d="M3 15h4a2 2 0 0 1 2 2v4"></path><path d="M15 21v-4a2 2 0 0 1 2-2h4"></path></svg>';
+  var fsSupported = !!(document.documentElement.requestFullscreen);
+  if(fsSupported){
+    fullscreenBtn.hidden = false;
+    fullscreenBtn.addEventListener('click', function(){
+      if(document.fullscreenElement){
+        document.exitFullscreen().catch(function(){});
+      } else {
+        document.documentElement.requestFullscreen().catch(function(){});
+      }
+    });
+    document.addEventListener('fullscreenchange', function(){
+      fullscreenBtn.innerHTML = document.fullscreenElement ? fsIconShrink : fsIconExpand;
+    });
+  }
+
+  /* ---------- theme ---------- */
+  function applyTheme(){
+    document.documentElement.setAttribute('data-theme', state.theme || 'dark');
+    var btns = themeSwatches.querySelectorAll('.swatch');
+    for(var i=0;i<btns.length;i++){
+      btns[i].classList.toggle('active', btns[i].getAttribute('data-theme') === (state.theme || 'dark'));
+    }
+  }
+  themeSwatches.addEventListener('click', function(e){
+    var btn = e.target.closest('.swatch');
+    if(!btn) return;
+    state.theme = btn.getAttribute('data-theme');
+    applyTheme();
+    saveState();
+  });
+
+  /* ---------- initial paint ---------- */
+  applyTheme();
+  refreshSoundSeg();
+  refreshAnimSeg();
+  updateFabUI(false);
+  targetInput.value = (typeof state.target === 'number') ? state.target : 100;
+  voiceSensRange.value = state.voiceSensitivity || 6;
+  voiceSensValue.textContent = state.voiceSensitivity || 6;
+  customWordInput.value = state.customWord || '';
+  chipLabelInput.value = state.chipLabel || '';
+  mosaicTextInput.value = state.mosaicText || '';
+  marqueeTextInput.value = state.marqueeText || '';
+  marqueeSpeedRange.value = state.marqueeSpeed || 12;
+  marqueeSpeedValue.textContent = (state.marqueeSpeed || 12) + ' сек';
+  marqueeBlinkSpeedRange.value = state.marqueeBlinkSpeed || 1.2;
+  marqueeBlinkSpeedValue.textContent = (state.marqueeBlinkSpeed || 1.2).toFixed(1) + ' сек';
+  refreshMarqueeBlinkSeg();
+  secRange.value = state.autoSec || 3;
+  secValue.textContent = (state.autoSec || 3) + ' сек';
+  refreshVoiceUI();
+  renderCounterScreen();
+
+  /* ---------- offline service worker (no-op on file://, helps if hosted on http/https) ---------- */
+  if('serviceWorker' in navigator && (location.protocol === 'https:' || location.protocol === 'http:')){
+    window.addEventListener('load', function(){
+      navigator.serviceWorker.register('sw.js').catch(function(){ /* ничего страшного, страница и так офлайн */ });
+    });
+  }
+})();
+</script>
